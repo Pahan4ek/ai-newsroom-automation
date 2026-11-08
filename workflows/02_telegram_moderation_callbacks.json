@@ -167,7 +167,7 @@
         "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/answerCallbackQuery",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{\n  {\n    \"callback_query_id\": $('Парсинг апдейтов').first().json.callbackQueryId,\n    \"text\": `🚨 ${$('Парсинг апдейтов').first().json.from}: опубликовано срочно!`,\n    \"show_alert\": true\n  }\n}}",
+        "jsonBody": "={{\n  {\n    \"callback_query_id\": $('Парсинг апдейтов').item.json.callbackQueryId,\n    \"text\": `🚨 ${$('Парсинг апдейтов').item.json.from}: опубликовано срочно!`,\n    \"show_alert\": true\n  }\n}}",
         "options": {}
       },
       "id": "21fd0ce2-bc9f-488d-9e2f-f16b8d88c6d7",
@@ -210,7 +210,7 @@
         "filters": {
           "conditions": [
             {
-              "keyValue": "={{ Number($('Парсинг апдейтов').first()?.json?.rowId || 0) }}"
+              "keyValue": "={{ Number($('Парсинг апдейтов').item.json.rowId || 0) }}"
             }
           ]
         },
@@ -272,7 +272,7 @@
         "filters": {
           "conditions": [
             {
-              "keyValue": "={{ Number($('Парсинг апдейтов').first()?.json?.rowId || 0) }}"
+              "keyValue": "={{ Number($('Парсинг апдейтов').item.json.rowId || 0) }}"
             }
           ]
         },
@@ -357,7 +357,7 @@
         "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/deleteMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{\n  {\n    \"chat_id\": $('Парсинг апдейтов').first().json.chatId,\n    \"message_id\": $('Парсинг апдейтов').first().json.messageId\n  }\n}}",
+        "jsonBody": "={{\n  {\n    \"chat_id\": $('Парсинг апдейтов').item.json.chatId,\n    \"message_id\": $('Парсинг апдейтов').item.json.messageId\n  }\n}}",
         "options": {}
       },
       "id": "afa37a00-8ffa-40c9-bfdc-ca0b2b3905f3",
@@ -382,7 +382,7 @@
         "filters": {
           "conditions": [
             {
-              "keyValue": "={{ Number($('Парсинг апдейтов').first().json.rowId) }}"
+              "keyValue": "={{ Number($('Парсинг апдейтов').item.json.rowId) }}"
             }
           ]
         }
