@@ -1,5 +1,5 @@
 {
-  "name": "Comment ai",
+  "name": "04 AI comment and publish",
   "nodes": [
     {
       "parameters": {},
@@ -14,7 +14,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const news = $input.first().json;\nconst style = news.style || 'balanced';\nconst sentences = news.sentences || 3;\n\nconst styleMap = {\n  balanced: 'Ты умный и немного ироничный новостной комментатор. Пиши живо, без пресности.',\n  ironic: 'Ты саркастичный аналитик. Пиши с легкой иронией и остроумием.',\n  ironictrump: 'Ты саркастичный аналитик. Пиши с легкой иронией и остроумием. Особенно ты любишь угорать над Трампом, Путиным, пророссийскими коррупционерами и депутами из Украины, Тцк',\n  serious: 'Ты серьезный эксперт-аналитик. Пиши авторитетно и по делу.'\n};\n\nconst systemPrompt = styleMap[style] || styleMap.ironictrump;\n\nconst userContent = 'Прочитай эту новость и напиши комментарий на русском языке: '\n  + sentences + ' предложений. Только текст, без заголовков и кавычек.\\n\\n'\n  + 'Заголовок: ' + (news.title || '') + '\\n'\n  + 'Текст: ' + (news.content || '').substring(0, 500) + '\\n'\n  + 'Источник: ' + (news.source || '');\n\nreturn [{\n  json: {\n    model: 'gemma-4-e4b',\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: userContent }\n    ],\n    temperature: 0.7,\n    max_tokens: 2048\n  }\n}];"
+        "jsCode": "const news = $input.first().json;\nconst style = news.style || 'balanced';\nconst sentences = news.sentences || 3;\n\nconst styleMap = {\n  balanced: 'Ты умный и немного ироничный новостной комментатор. Пиши живо, без пресности.',\n  ironic: 'Ты саркастичный аналитик. Пиши с легкой иронией и остроумием.',\n  serious: 'Ты серьезный эксперт-аналитик. Пиши авторитетно и по делу.'\n};\n\nconst systemPrompt = styleMap[style] || styleMap.balanced;\n\nconst userContent = 'Прочитай эту новость и напиши комментарий на русском языке: '\n  + sentences + ' предложений. Только текст, без заголовков и кавычек.\\n\\n'\n  + 'Заголовок: ' + (news.title || '') + '\\n'\n  + 'Текст: ' + (news.content || '').substring(0, 500) + '\\n'\n  + 'Источник: ' + (news.source || '');\n\nreturn [{\n  json: {\n    model: 'gemma-4-e4b',\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: userContent }\n    ],\n    temperature: 0.7,\n    max_tokens: 2048\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -28,12 +28,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:1234/v1/chat/completions",
+        "url": "={{ $env.LLM_API_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ $json }}",
+        "jsonBody": "={{ Object.assign({}, $json, $env.LLM_MODEL ? { model: $env.LLM_MODEL } : {}) }}",
         "options": {
           "timeout": 120000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.LLM_API_KEY }}"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -47,7 +56,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const news = $('When called by another workflow').first().json;\nconst msg = $input.first().json?.choices?.[0]?.message || {};\nconst aiComment = (msg.content || msg.reasoning_content || '').trim();\n\nconst title = (news.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst content = (news.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst comment = aiComment.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst url = news.url || '';\nconst source = news.source || 'Источник';\n\nconst commentBlock = comment ? '\\n\\n💬 <i>' + comment + '</i>' : '';\n\nconst text = '<b>' + title + '</b>\\n\\n'\n  + content\n  + commentBlock\n  + '\\n\\n<a href=\"' + url + '\">' + source + '</a>';\n\nreturn [{ json: { text: text, chat_id: '{{ $env.TELEGRAM_CHANNEL_ID || '@your_channel_or_id' }}' } }];"
+        "jsCode": "const news = $('When called by another workflow').first().json;\nconst msg = $input.first().json?.choices?.[0]?.message || {};\n// content only: falling back to reasoning_content would post the model's chain of thought\nconst aiComment = (msg.content || '').trim();\n\nconst title = (news.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst content = (news.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst comment = aiComment.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst url = news.url || '';\nconst source = news.source || 'Источник';\n\nconst commentBlock = comment ? '\\n\\n💬 <i>' + comment + '</i>' : '';\n\nconst text = '<b>' + title + '</b>\\n\\n'\n  + content\n  + commentBlock\n  + '\\n\\n<a href=\"' + url + '\">' + source + '</a>';\n\nreturn [{ json: { text } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -61,10 +70,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/sendMessage",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text, parse_mode: 'HTML' }) }}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHANNEL_ID, text: $json.text, parse_mode: 'HTML' }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -124,7 +133,7 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
@@ -135,12 +144,5 @@
     "instanceId": "b60510a1c42de69393184a32dd9357985273cd9ad91d3b831d2d1f02c35e373b"
   },
   "id": "7O3LhmBvuweE5JWY",
-  "tags": [
-    {
-      "updatedAt": "2026-04-26T22:02:04.319Z",
-      "createdAt": "2026-04-26T22:02:04.319Z",
-      "id": "IlGqdyXFvsn4jz9w",
-      "name": "комментарий ии"
-    }
-  ]
+  "tags": []
 }

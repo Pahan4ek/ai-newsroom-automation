@@ -1,5 +1,5 @@
 {
-  "name": "NEWS COMBO - IMPROVED",
+  "name": "01 Collector, dedup and AI curator",
   "nodes": [
     {
       "parameters": {
@@ -73,16 +73,25 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:1234/v1/chat/completions",
+        "url": "={{ $env.LLM_API_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ $json }}",
+        "jsonBody": "={{ Object.assign({}, $json, $env.LLM_MODEL ? { model: $env.LLM_MODEL } : {}) }}",
         "options": {
           "timeout": 120000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.LLM_API_KEY }}"
+            }
+          ]
         }
       },
       "id": "2d33a2ea-631b-4032-9c76-c5963b58b544",
-      "name": "LLM Studio API",
+      "name": "LLM API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -106,10 +115,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/sendMessage",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ \"chat_id\": \"{{ $env.TELEGRAM_MODERATION_CHAT_ID || '-100XXXXXXXXXX' }}\", \"text\": \"<b>\" + ($json.title || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"</b>\\n\\n\" + ($json.content || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"\\n\\n<a href=\\\"\" + $json.url + \"\\\">Источник</a>\", \"parse_mode\": \"HTML\", \"reply_markup\": { \"inline_keyboard\": [[ { \"text\": \"❌ Не берём\", \"callback_data\": \"skip|\" + $json.id }, { \"text\": \"📋 Берём\", \"callback_data\": \"queue|\" + $json.id }, { \"text\": \"🚨 Срочно\", \"callback_data\": \"urgent|\" + $json.id } ]] } }) }}",
+        "jsonBody": "={{ JSON.stringify({ \"chat_id\": $env.TELEGRAM_MODERATION_CHAT_ID, \"text\": \"<b>\" + ($json.title || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"</b>\\n\\n\" + ($json.content || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"\\n\\n<a href=\\\"\" + $json.url + \"\\\">Источник</a>\", \"parse_mode\": \"HTML\", \"reply_markup\": { \"inline_keyboard\": [[ { \"text\": \"❌ Не берём\", \"callback_data\": \"skip|\" + $json.id }, { \"text\": \"📋 Берём\", \"callback_data\": \"queue|\" + $json.id }, { \"text\": \"🚨 Срочно\", \"callback_data\": \"urgent|\" + $json.id } ]] } }) }}",
         "options": {}
       },
       "id": "36bcfaae-b7f5-4b0d-97c1-291b646a74f2",
@@ -127,10 +136,8 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "0mCqOZdb9h2JCdMM",
-          "mode": "list",
-          "cachedResultName": "table",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/0mCqOZdb9h2JCdMM"
+          "mode": "name",
+          "value": "seen_urls"
         },
         "filters": {
           "conditions": []
@@ -172,10 +179,8 @@
       "parameters": {
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -256,10 +261,8 @@
       "parameters": {
         "dataTableId": {
           "__rl": true,
-          "value": "0mCqOZdb9h2JCdMM",
-          "mode": "list",
-          "cachedResultName": "table",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/0mCqOZdb9h2JCdMM"
+          "mode": "name",
+          "value": "seen_urls"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -344,18 +347,7 @@
       "main": [
         [
           {
-            "node": "LLM Studio API",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "LLM Studio API": {
-      "main": [
-        [
-          {
-            "node": "Парсинг ответа ИИ",
+            "node": "LLM API",
             "type": "main",
             "index": 0
           }
@@ -416,9 +408,20 @@
           }
         ]
       ]
+    },
+    "LLM API": {
+      "main": [
+        [
+          {
+            "node": "Парсинг ответа ИИ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"

@@ -1,108 +1,107 @@
-# 📰 Autonomous AI Newsroom & Telegram Media Automation
+# AI Newsroom: RSS to Telegram with human moderation
 
-[![n8n](https://img.shields.io/badge/Orchestrator-n8n-FF6D5A.svg?logo=n8n)](https://n8n.io/)
-[![Docker Compose](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED.svg?logo=docker)](docker-compose.yml)
-[![Telegram Bot API](https://img.shields.io/badge/Integration-Telegram%20Bot%20API-2CA5E0.svg?logo=telegram)](https://core.telegram.org/bots/api)
-[![LLM Support](https://img.shields.io/badge/LLM-Local%20(LM%20Studio%20%7C%20Ollama)%20%2F%20OpenAI-8A2BE2.svg)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![e2e](https://github.com/Pahan4ek/ai-newsroom-automation/actions/workflows/e2e.yml/badge.svg)](https://github.com/Pahan4ek/ai-newsroom-automation/actions/workflows/e2e.yml)
+[![n8n](https://img.shields.io/badge/n8n-2.46-FF6D5A.svg?logo=n8n)](https://n8n.io/)
+[![Docker Compose](https://img.shields.io/badge/deploy-Docker%20Compose-2496ED.svg?logo=docker)](docker-compose.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-An end-to-end, autonomous editorial pipeline that aggregates breaking news across global media outlets, filters duplicates, synthesizes punchy summaries via LLM, provides an interactive **Human-in-the-Loop moderation dashboard** in Telegram, manages a timed publication queue, and deploys an **AI Commentator persona** to drive community engagement in the channel.
+A small editorial pipeline for a Telegram news channel, built as four n8n workflows. It pulls RSS feeds every 10 minutes, drops anything already seen, has an LLM translate the fresh stories into Russian, and sends each one to a private moderation chat with three buttons. An editor decides what goes out. Approved stories are published on a schedule, each with a short LLM-written comment attached.
 
-100% private, self-hosted, and compatible with both local models (LM Studio, Ollama, vLLM) and cloud APIs (OpenAI, Claude, Gemini).
+The LLM can be local (LM Studio, Ollama, anything with an OpenAI-compatible `/v1/chat/completions`) or a cloud API.
 
----
-
-## 🏛️ Architecture & Dataflow
+## How it works
 
 ```mermaid
 flowchart TD
-    subgraph Sourcing ["1. Ingestion & Preprocessing"]
-        RSS["Global RSS / Atom Feeds\n(BBC, CNN, WSJ, TechCrunch, Verge, Wired)"] --> Fetch["HTTP Fetcher & XML Parser"]
-        Fetch --> Dedup{"Deduplication Engine\n(URL & Time Window Check)"}
-        Dedup -- New Story --> AI_Curator["LLM Editorial Node\n(Rewrite, Hook & Key Takeaways)"]
-        Dedup -- Duplicate --> Discard["Drop"]
+    subgraph W1 ["01 Collector, dedup and AI curator (every 10 min)"]
+        RSS["13 RSS / Atom feeds<br/>BBC, NYT, Guardian, TechCrunch, ..."] --> Parse["Parse, newest 5 per feed"]
+        Parse --> Dedup{"Seen URL?<br/>Older than 24h?"}
+        Dedup -- new --> LLM1["LLM: translate title + text"]
+        Dedup -- seen / old --> Drop["drop"]
+        LLM1 --> Q[("news_queue<br/>status: pending")]
+        Q --> Card["Card in moderation chat<br/>Skip / Queue / Urgent"]
     end
 
-    subgraph Moderation ["2. Human-in-the-Loop Hub"]
-        AI_Curator --> Draft["Private Telegram Moderation Chat\n(Rich HTML Card + Inline Buttons)"]
-        Draft --> Callback{"Moderator Action"}
-        Callback -- "🚀 Publish Now" --> DirectPost["Instant Dispatch to Channel"]
-        Callback -- "⏳ Add to Queue" --> QueueStore[("Queue Table\n(status: queued)")]
-        Callback -- "❌ Reject" --> MarkRejected["Archive / Strikeout"]
+    subgraph W2 ["02 Moderation callbacks (polls every 10 s)"]
+        Card --> Btn{"Editor's button"}
+        Btn -- Skip --> Closed["row closed, card deleted"]
+        Btn -- Queue --> Queued["status: queued, card deleted"]
+        Btn -- Urgent --> Now["publish right away"]
     end
 
-    subgraph Publishing ["3. Queue & Autonomous Engagement"]
-        ScheduleCron["Scheduled Trigger\n(e.g., every 30-45 mins)"] --> QueueReader["Fetch Oldest Queued Story"]
-        QueueStore --> QueueReader
-        QueueReader --> Channel["Target Telegram Public Channel"]
-        DirectPost --> Channel
-        Channel --> TriggerComment["Trigger Sub-Workflow: Comment ai"]
-        TriggerComment --> PersonaLLM["AI Persona Commentator\n(Witty / Analytical Persona)"]
-        PersonaLLM --> ChannelDiscussion["Post Comment in Discussion Group / Thread"]
+    subgraph W3 ["03 Scheduled publisher (every 30 min)"]
+        Queued --> Oldest["take one queued story"]
+    end
+
+    subgraph W4 ["04 AI comment and publish (sub-workflow)"]
+        Now --> LLM2["LLM: 3-sentence comment"]
+        Oldest --> LLM2
+        LLM2 --> Post["Post to channel:<br/>title, text, comment, source link"]
     end
 ```
 
----
+| Workflow | What it does |
+|---|---|
+| `01_collector_dedup_and_ai_curator.json` | Fetches the feeds, keeps items from the last 24 hours whose URL isn't in `seen_urls`, sends up to 10 of them to the LLM in one request, stores the result in `news_queue` and posts a moderation card for each. |
+| `02_telegram_moderation_callbacks.json` | Polls `getUpdates` for button presses. Skip closes the row, Queue marks it `queued`, Urgent calls workflow 04 immediately. The card is deleted from the moderation chat either way. |
+| `03_queue_scheduled_publisher.json` | Every 30 minutes takes one `queued` row and hands it to workflow 04. |
+| `04_ai_comment_generator.json` | Asks the LLM for a short comment and posts the story to the channel with the comment in italics under the text. |
 
-## ✨ Core Workflows Breakdown
+The prompts are in Russian and the channel output is Russian. Change them in the Code nodes `Для ИИ` (01) and `Промпт для ИИ` (04).
 
-The system is organized into **4 modular, interconnected n8n workflows** located in the [`workflows/`](workflows/) directory:
+## Setup
 
-| Workflow | File | Function |
+You need Docker, a Telegram bot from @BotFather, a private group for moderation and a channel. Add the bot to both: it has to be able to send and delete messages in the group and to post in the channel.
+
+1. Configure:
+   ```bash
+   git clone https://github.com/Pahan4ek/ai-newsroom-automation.git
+   cd ai-newsroom-automation
+   cp .env.example .env    # fill in the bot token, chat IDs and LLM settings
+   ```
+2. Start n8n and open http://localhost:5678. Create the owner account on first launch.
+   ```bash
+   docker compose up -d
+   ```
+3. Create two data tables in the **Data tables** tab. The workflows find them by name, so the names must match:
+   - `seen_urls` with a string column `url`
+   - `news_queue` with string columns `title`, `content`, `url`, `status`
+4. Import the workflows from the CLI:
+   ```bash
+   docker compose exec n8n n8n import:workflow --separate --input=/workflows
+   ```
+   The CLI keeps the workflow IDs from the files, so 02 and 03 find workflow 04 without manual relinking. If you import through the UI instead, open the `Call 'Comment ai'` node in 02 and 03 and pick workflow 04 again.
+5. Publish the workflows in the UI, **04 first**: n8n 2.x refuses to publish a workflow whose sub-workflow isn't published. Then 01, 02 and 03.
+
+### LLM backends
+
+All LLM calls go to `LLM_API_URL` with `Authorization: Bearer $LLM_API_KEY`.
+
+| Backend | `LLM_API_URL` | `LLM_MODEL` |
 |---|---|---|
-| **01. Ingestion & Curator** | [`01_collector_dedup_and_ai_curator.json`](workflows/01_collector_dedup_and_ai_curator.json) | Scrapes RSS/Atom feeds, eliminates duplicates, formats prompts for LLM, and sends interactive draft cards with buttons to the moderation group. |
-| **02. Moderation Callbacks** | [`02_telegram_moderation_callbacks.json`](workflows/02_telegram_moderation_callbacks.json) | Listens for moderator button clicks (`Publish`, `Queue`, `Reject`) via Telegram callbacks, updates database statuses, and routes execution. |
-| **03. Scheduled Queue** | [`03_queue_scheduled_publisher.json`](workflows/03_queue_scheduled_publisher.json) | Periodically dequeues pending curated stories, dispatches them to the channel according to your publication calendar, and updates records. |
-| **04. AI Commentator** | [`04_ai_comment_generator.json`](workflows/04_ai_comment_generator.json) | Autonomous sub-workflow triggered after a post goes live. Generates an insightful or witty opinionated comment under the post to spark discussions. |
+| LM Studio on the host | `http://host.docker.internal:1234/v1/chat/completions` | empty (uses `gemma-4-e4b`) or whatever you loaded |
+| Ollama on the host | `http://host.docker.internal:11434/v1/chat/completions` | e.g. `qwen2.5:7b` |
+| OpenAI / OpenRouter / Groq | the provider's chat completions URL | a model the provider serves |
 
----
+## Testing
 
-## 🚀 1-Click Quick Start
+`tests/e2e/run.sh` runs all four workflows on a real n8n 2.46.6 (SQLite in a temp dir) against a small Python mock of the feeds, the LLM and the Telegram Bot API. It creates the data tables, imports the workflows through the CLI, publishes them and checks the queue after each step: collection and dedup, three different buttons pressed within one poll, the scheduled publish, plus what reached the mock (cards, channel posts, deleted cards, LLM auth header).
 
-### 1. Clone & Setup Environment
 ```bash
-git clone https://github.com/your-username/ai-newsroom-automation.git
-cd ai-newsroom-automation
-cp .env.example .env
+npm i -g n8n@2.46.6   # Node.js 24+
+tests/e2e/run.sh
 ```
 
-Edit `.env` with your Telegram Bot token and target channel IDs:
-```env
-TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ
-TELEGRAM_MODERATION_CHAT_ID=-100XXXXXXXXXX
-TELEGRAM_CHANNEL_ID=@your_channel_name
-LLM_API_URL=http://host.docker.internal:1234/v1/chat/completions
-```
+GitHub Actions runs it on every push. The script works on its own copy of the workflows: Telegram calls and feeds point at the mock, and 01 and 03 get a test-only webhook so a run can be started without waiting for the schedule.
 
-### 2. Launch n8n in Docker
-```bash
-docker compose up -d
-```
-Open **`http://localhost:5678`** in your browser to access the n8n UI.
+## Design notes and limits
 
-### 3. Import Workflows
-1. Inside n8n, navigate to **Workflows -> Add Workflow -> Import from File**.
-2. Import the 4 JSON files from the [`workflows/`](workflows/) folder:
-   - `01_collector_dedup_and_ai_curator.json`
-   - `02_telegram_moderation_callbacks.json`
-   - `03_queue_scheduled_publisher.json`
-   - `04_ai_comment_generator.json`
-3. Toggle the switches to **Active**.
+- **Polling instead of a webhook.** A Telegram trigger needs a public HTTPS URL. Polling `getUpdates` every 10 seconds works on a laptop behind NAT. The bot must not have a webhook set, or `getUpdates` returns nothing.
+- **Dedup is by URL only.** The same story from two outlets will reach the moderation chat twice. That's the editor's job for now.
+- **URLs are marked as seen before the LLM call.** If the LLM is down, those stories are skipped rather than retried every 10 minutes.
+- **LLM output is parsed leniently.** Workflow 01 pulls the first JSON array out of the reply. If parsing fails, the original English text goes to moderation, so nothing is lost silently.
+- **Tokens live in env vars**, which is why `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` is set in `docker-compose.yml`. n8n credentials would be the cleaner option for a shared instance.
 
----
+## License
 
-## 🤖 Supported LLM Backends
-
-The workflows communicate with standard OpenAI-compatible `/v1/chat/completions` endpoints:
-
-* **Local / 100% Free**:
-  * **LM Studio**: Run your favorite local model (e.g. Llama 3.1 8B, Qwen 2.5 7B) on your GPU. Set `LLM_API_URL=http://host.docker.internal:1234/v1/chat/completions`.
-  * **Ollama**: Set `LLM_API_URL=http://host.docker.internal:11434/v1/chat/completions`.
-* **Cloud Providers**:
-  * **OpenAI / OpenRouter / Groq**: Set `LLM_API_URL` to provider endpoint and specify your API key.
-
----
-
-## 🛡️ License
-
-MIT License. See [LICENSE](LICENSE) for details.
+MIT, see [LICENSE](LICENSE).

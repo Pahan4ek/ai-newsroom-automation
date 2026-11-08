@@ -1,6 +1,7 @@
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
+    # Pinned on purpose: the workflows rely on n8n 2.x behaviour (Data tables by name, $env access flag).
+    image: docker.n8n.io/n8nio/n8n:2.46.6
     container_name: n8n-newsroom
     restart: unless-stopped
     ports:
@@ -12,15 +13,21 @@ services:
       - NODE_ENV=production
       - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Europe/Kyiv}
-      # Telegram Credentials passed to n8n expressions
+      # n8n 2.0+ blocks $env in expressions by default. The workflows read tokens and IDs from env,
+      # so access has to be switched back on.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_MODERATION_CHAT_ID=${TELEGRAM_MODERATION_CHAT_ID}
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
       - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:1234/v1/chat/completions}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-}
     volumes:
       - n8n_data:/home/node/.n8n
+      # mounted read-only so the CLI import in the README can see the workflow files
+      - ./workflows:/workflows:ro
     extra_hosts:
-      # Allows n8n container to connect to host-running local LLM (LM Studio / Ollama)
+      # lets the container reach a model server running on the host (LM Studio / Ollama)
       - "host.docker.internal:host-gateway"
 
 volumes:

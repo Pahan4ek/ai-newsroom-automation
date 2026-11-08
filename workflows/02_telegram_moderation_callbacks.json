@@ -1,5 +1,5 @@
 {
-  "name": "NEWS COMBO - Обработка кнопок",
+  "name": "02 Moderation callbacks",
   "nodes": [
     {
       "parameters": {
@@ -37,7 +37,7 @@
     },
     {
       "parameters": {
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/getUpdates",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/getUpdates",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -114,10 +114,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/answerCallbackQuery",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"callback_query_id\": \"{{ $json.callbackQueryId }}\", \"text\": \"❌ {{ $json.from }}: не берём\", \"show_alert\": false }",
+        "jsonBody": "={{ JSON.stringify({ callback_query_id: $json.callbackQueryId, text: '❌ ' + $json.from + ': не берём', show_alert: false }) }}",
         "options": {}
       },
       "id": "6bc4b81a-7f8e-4613-91b4-7ae6f846a7f7",
@@ -164,10 +164,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/answerCallbackQuery",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{\n  {\n    \"callback_query_id\": $('Парсинг апдейтов').first().json.callbackQueryId,\n    \"text\": `🚨 ${$('Парсинг апдейтов').first().json.from}: опубликовано срочно!`,\n    \"show_alert\": true\n  }\n}}",
+        "jsonBody": "={{\n  {\n    \"callback_query_id\": $('Парсинг апдейтов').item.json.callbackQueryId,\n    \"text\": `🚨 ${$('Парсинг апдейтов').item.json.from}: опубликовано срочно!`,\n    \"show_alert\": true\n  }\n}}",
         "options": {}
       },
       "id": "21fd0ce2-bc9f-488d-9e2f-f16b8d88c6d7",
@@ -182,10 +182,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/answerCallbackQuery",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"callback_query_id\": \"{{ $json.callbackQueryId }}\", \"text\": \"📋 {{ $json.from }}: добавлено в очередь\", \"show_alert\": false }",
+        "jsonBody": "={{ JSON.stringify({ callback_query_id: $json.callbackQueryId, text: '📋 ' + $json.from + ': добавлено в очередь', show_alert: false }) }}",
         "options": {}
       },
       "id": "3921e1a0-8798-43e3-80d2-e642b680314b",
@@ -202,15 +202,13 @@
         "operation": "update",
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "filters": {
           "conditions": [
             {
-              "keyValue": "={{ Number($('Парсинг апдейтов').first()?.json?.rowId || 0) }}"
+              "keyValue": "={{ Number($('Парсинг апдейтов').item.json.rowId || 0) }}"
             }
           ]
         },
@@ -264,15 +262,13 @@
         "operation": "update",
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "filters": {
           "conditions": [
             {
-              "keyValue": "={{ Number($('Парсинг апдейтов').first()?.json?.rowId || 0) }}"
+              "keyValue": "={{ Number($('Парсинг апдейтов').item.json.rowId || 0) }}"
             }
           ]
         },
@@ -354,10 +350,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/deleteMessage",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/deleteMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{\n  {\n    \"chat_id\": $('Парсинг апдейтов').first().json.chatId,\n    \"message_id\": $('Парсинг апдейтов').first().json.messageId\n  }\n}}",
+        "jsonBody": "={{\n  {\n    \"chat_id\": $('Парсинг апдейтов').item.json.chatId,\n    \"message_id\": $('Парсинг апдейтов').item.json.messageId\n  }\n}}",
         "options": {}
       },
       "id": "afa37a00-8ffa-40c9-bfdc-ca0b2b3905f3",
@@ -374,15 +370,13 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "filters": {
           "conditions": [
             {
-              "keyValue": "={{ Number($('Парсинг апдейтов').first().json.rowId) }}"
+              "keyValue": "={{ Number($('Парсинг апдейтов').item.json.rowId) }}"
             }
           ]
         }
@@ -435,7 +429,7 @@
           "value": "7O3LhmBvuweE5JWY",
           "mode": "list",
           "cachedResultUrl": "/workflow/7O3LhmBvuweE5JWY",
-          "cachedResultName": "Comment ai"
+          "cachedResultName": "04 AI comment and publish"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
@@ -460,28 +454,7 @@
       "name": "Call 'Comment ai'"
     }
   ],
-  "pinData": {
-    "Polling каждые 10 сек": [
-      {
-        "json": {
-          "timestamp": "2026-04-26T18:19:00.004-04:00",
-          "Readable date": "April 26th 2026, 6:19:00 pm",
-          "Readable time": "6:19:00 pm",
-          "Day of week": "Sunday",
-          "Year": "2026",
-          "Month": "April",
-          "Day of month": "26",
-          "Hour": "18",
-          "Minute": "19",
-          "Second": "00",
-          "Timezone": "America/New_York (UTC-04:00)"
-        },
-        "pairedItem": {
-          "item": 0
-        }
-      }
-    ]
-  },
+  "pinData": {},
   "connections": {
     "Polling каждые 10 сек": {
       "main": [
@@ -646,7 +619,7 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"
