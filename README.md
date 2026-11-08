@@ -1,5 +1,6 @@
 # AI Newsroom: RSS to Telegram with human moderation
 
+[![e2e](https://github.com/Pahan4ek/ai-newsroom-automation/actions/workflows/e2e.yml/badge.svg)](https://github.com/Pahan4ek/ai-newsroom-automation/actions/workflows/e2e.yml)
 [![n8n](https://img.shields.io/badge/n8n-2.46-FF6D5A.svg?logo=n8n)](https://n8n.io/)
 [![Docker Compose](https://img.shields.io/badge/deploy-Docker%20Compose-2496ED.svg?logo=docker)](docker-compose.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
@@ -91,7 +92,7 @@ npm i -g n8n@2.46.6   # Node.js 24+
 tests/e2e/run.sh
 ```
 
-The script works on its own copy of the workflows: Telegram calls and feeds point at the mock, and 01 and 03 get a test-only webhook so a run can be started without waiting for the schedule.
+GitHub Actions runs it on every push. The script works on its own copy of the workflows: Telegram calls and feeds point at the mock, and 01 and 03 get a test-only webhook so a run can be started without waiting for the schedule.
 
 ## Design notes and limits
 

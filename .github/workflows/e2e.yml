@@ -1,0 +1,22 @@
+name: e2e
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install n8n (same version as docker-compose.yml)
+        run: npm install -g --no-audit --no-fund n8n@2.46.6
+      - name: Run all four workflows against the mock
+        run: tests/e2e/run.sh
