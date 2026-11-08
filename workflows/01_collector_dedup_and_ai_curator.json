@@ -1,5 +1,5 @@
 {
-  "name": "NEWS COMBO - IMPROVED",
+  "name": "01 Collector, dedup and AI curator",
   "nodes": [
     {
       "parameters": {
@@ -136,10 +136,8 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "0mCqOZdb9h2JCdMM",
-          "mode": "list",
-          "cachedResultName": "table",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/0mCqOZdb9h2JCdMM"
+          "mode": "name",
+          "value": "seen_urls"
         },
         "filters": {
           "conditions": []
@@ -181,10 +179,8 @@
       "parameters": {
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -265,10 +261,8 @@
       "parameters": {
         "dataTableId": {
           "__rl": true,
-          "value": "0mCqOZdb9h2JCdMM",
-          "mode": "list",
-          "cachedResultName": "table",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/0mCqOZdb9h2JCdMM"
+          "mode": "name",
+          "value": "seen_urls"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -427,7 +421,7 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"

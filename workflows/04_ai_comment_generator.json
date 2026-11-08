@@ -1,5 +1,5 @@
 {
-  "name": "Comment ai",
+  "name": "04 AI comment and publish",
   "nodes": [
     {
       "parameters": {},
@@ -133,7 +133,7 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
@@ -144,12 +144,5 @@
     "instanceId": "b60510a1c42de69393184a32dd9357985273cd9ad91d3b831d2d1f02c35e373b"
   },
   "id": "7O3LhmBvuweE5JWY",
-  "tags": [
-    {
-      "updatedAt": "2026-04-26T22:02:04.319Z",
-      "createdAt": "2026-04-26T22:02:04.319Z",
-      "id": "IlGqdyXFvsn4jz9w",
-      "name": "комментарий ии"
-    }
-  ]
+  "tags": []
 }

@@ -1,5 +1,5 @@
 {
-  "name": "NEWS COMBO - Публикация очереди",
+  "name": "03 Scheduled queue publisher",
   "nodes": [
     {
       "parameters": {
@@ -27,10 +27,8 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "filters": {
           "conditions": [
@@ -100,10 +98,8 @@
         "operation": "update",
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "filters": {
           "conditions": [
@@ -163,7 +159,7 @@
           "value": "7O3LhmBvuweE5JWY",
           "mode": "list",
           "cachedResultUrl": "/workflow/7O3LhmBvuweE5JWY",
-          "cachedResultName": "Comment ai"
+          "cachedResultName": "04 AI comment and publish"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
@@ -235,7 +231,7 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"

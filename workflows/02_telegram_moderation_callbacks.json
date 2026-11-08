@@ -1,5 +1,5 @@
 {
-  "name": "NEWS COMBO - Обработка кнопок",
+  "name": "02 Moderation callbacks",
   "nodes": [
     {
       "parameters": {
@@ -202,10 +202,8 @@
         "operation": "update",
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "filters": {
           "conditions": [
@@ -264,10 +262,8 @@
         "operation": "update",
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "filters": {
           "conditions": [
@@ -374,10 +370,8 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "m3MeA93VtsWNJw4e",
-          "mode": "list",
-          "cachedResultName": "Queue",
-          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+          "mode": "name",
+          "value": "news_queue"
         },
         "filters": {
           "conditions": [
@@ -435,7 +429,7 @@
           "value": "7O3LhmBvuweE5JWY",
           "mode": "list",
           "cachedResultUrl": "/workflow/7O3LhmBvuweE5JWY",
-          "cachedResultName": "Comment ai"
+          "cachedResultName": "04 AI comment and publish"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
@@ -460,28 +454,7 @@
       "name": "Call 'Comment ai'"
     }
   ],
-  "pinData": {
-    "Polling каждые 10 сек": [
-      {
-        "json": {
-          "timestamp": "2026-04-26T18:19:00.004-04:00",
-          "Readable date": "April 26th 2026, 6:19:00 pm",
-          "Readable time": "6:19:00 pm",
-          "Day of week": "Sunday",
-          "Year": "2026",
-          "Month": "April",
-          "Day of month": "26",
-          "Hour": "18",
-          "Minute": "19",
-          "Second": "00",
-          "Timezone": "America/New_York (UTC-04:00)"
-        },
-        "pairedItem": {
-          "item": 0
-        }
-      }
-    ]
-  },
+  "pinData": {},
   "connections": {
     "Polling каждые 10 сек": {
       "main": [
@@ -646,7 +619,7 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"
