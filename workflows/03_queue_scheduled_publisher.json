@@ -1,0 +1,249 @@
+{
+  "name": "NEWS COMBO - Публикация очереди",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "57e2fe4e-6d3b-4998-9138-ffe70c9db831",
+      "name": "Schedule 30min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        3344,
+        192
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "m3MeA93VtsWNJw4e",
+          "mode": "list",
+          "cachedResultName": "Queue",
+          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "keyValue": "queued"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "id": "8cc6c8eb-28c4-4972-a3e5-13f953b7a81e",
+      "name": "Читать очередь",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3568,
+        192
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "id": "c9df7700-466e-47e7-b3c3-85764f6c0e44"
+            },
+            {
+              "id": "5ee243dd-fad7-4f33-91b5-991f9d6b1deb",
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4fe07e54-e37b-449b-968b-8c3a1221eac7",
+      "name": "Есть посты?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3792,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "m3MeA93VtsWNJw4e",
+          "mode": "list",
+          "cachedResultName": "Queue",
+          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ Number($('Читать очередь').first()?.json?.id || 0) }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "published"
+          },
+          "matchingColumns": [
+            "url"
+          ],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "e380a11b-f934-4e9f-8cfa-aa59e755fa20",
+      "name": "Статус: published",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3872,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "7O3LhmBvuweE5JWY",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/7O3LhmBvuweE5JWY",
+          "cachedResultName": "Comment ai"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3232,
+        16
+      ],
+      "id": "51280cd9-d466-4519-8651-a283e191b52a",
+      "name": "Call 'Comment ai'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule 30min": {
+      "main": [
+        [
+          {
+            "node": "Читать очередь",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Читать очередь": {
+      "main": [
+        [
+          {
+            "node": "Есть посты?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Есть посты?": {
+      "main": [
+        [
+          {
+            "node": "Call 'Comment ai'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Comment ai'": {
+      "main": [
+        [
+          {
+            "node": "Статус: published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8b2d69b9-d4ff-4c29-b3cb-12315bf32585",
+  "meta": {
+    "instanceId": "b60510a1c42de69393184a32dd9357985273cd9ad91d3b831d2d1f02c35e373b"
+  },
+  "id": "m9W5tEdtoRyCvCUr",
+  "tags": []
+}

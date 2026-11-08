@@ -1,0 +1,432 @@
+{
+  "name": "NEWS COMBO - IMPROVED",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "return [\n  // 🌍 Мировые гиганты\n  { json: { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World' } },\n  { json: { url: 'http://rss.cnn.com/rss/edition.rss', name: 'CNN' } },\n  { json: { url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', name: 'NYT' } },\n  { json: { url: 'https://www.theguardian.com/world/rss', name: 'The Guardian' } },\n  { json: { url: 'https://feeds.washingtonpost.com/rss/world', name: 'Washington Post' } },\n  { json: { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'Wall Street Journal' } },\n  { json: { url: 'https://chaski.huffpost.com/us/auto/vertical/world-news', name: 'HuffPost' } },\n\n  // 🇺🇦 Локальные\n  { json: { url: 'https://www.pravda.com.ua/rus/rss/view_news/', name: 'УкрПравда' } },\n\n  // 💻 Технологии и наука\n  { json: { url: 'https://techcrunch.com/feed/', name: 'TechCrunch' } },\n  { json: { url: 'https://www.theverge.com/rss/index.xml', name: 'The Verge' } },\n  { json: { url: 'https://www.nasa.gov/rss/dyn/breaking_news.rss', name: 'NASA' } },\n\n  // 🧠 Глубокая аналитика\n  { json: { url: 'https://time.com/feed/', name: 'TIME' } },\n  { json: { url: 'https://www.wired.com/feed/rss', name: 'WIRED' } }\n];\n"
+      },
+      "id": "6e6dbde0-fe55-481e-b5c0-078e0bc85190",
+      "name": "Источники",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4112,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "f421d116-282a-4e67-948e-1da42ad26ff0",
+      "name": "Запрос RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        4320,
+        928
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// поддержка RSS (item) и Atom (entry) форматов\nfunction getTag(tag, text) {\n  // Строковая конкатенация вместо template literal — избегаем проблем с escape в JSON\n  var regex = new RegExp('<' + tag + '[^>]*>([\\\\s\\\\S]*?)<\\\\/' + tag + '>', 'i');\n  var match = text.match(regex);\n  if (!match) return '';\n  return match[1].replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/gi, '$1').trim();\n}\n\nfunction getLink(text) {\n  // Atom: <link href=\"...\" />\n  var atomHref = text.match(/<link[^>]+href=[\"']([^\"']+)[\"'][^>]*\\/?>/);\n  if (atomHref) return atomHref[1].trim();\n  // RSS: <link>url</link>\n  return getTag('link', text);\n}\n\nvar result = [];\nfor (var item of $input.all()) {\n  var xml = item.json.data || '';\n  if (!xml) continue;\n  var src = item.json.name || 'News';\n\n  var isAtom = xml.includes('<entry>');\n  var openTag = isAtom ? '<entry>' : '<item>';\n  var closeTag = isAtom ? '</entry>' : '</item>';\n  var dateTag = isAtom ? 'updated' : 'pubDate';\n\n  var parts = xml.split(openTag);\n  for (var i = 1; i < parts.length && i <= 5; i++) {\n    var b = parts[i].split(closeTag)[0];\n    var title = getTag('title', b);\n    var url = getLink(b);\n    var content = getTag('description', b).replace(/<[^>]+>/g, '').trim()\n      || getTag('summary', b).replace(/<[^>]+>/g, '').trim();\n    var date = getTag(dateTag, b);\n\n    if (title && url) {\n      result.push({ json: { source: src, title: title, url: url, content: content, date: date } });\n    }\n  }\n}\nreturn result;\n"
+      },
+      "id": "cff34d63-7ed6-4d57-a4b7-a9df94db0145",
+      "name": "Парсинг RSS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4512,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Читаем базу и очищаем ссылки\nconst db = $('Чтение Базы').all()\n  .map(i => (i.json.url || '').trim().replace(/\\/$/, ''))\n  .filter(url => url !== '');\n\nconst news = $input.all();\nconst cutoff = new Date();\ncutoff.setHours(cutoff.getHours() - 24);\n\nconst filtered = news.filter(n => {\n  if (!n.json.url) return false;\n  if (!n.json.title || n.json.title.trim() === '') return false;\n\n  const currentUrl = n.json.url.trim().replace(/\\/$/, '');\n  const isNew = !db.includes(currentUrl);\n\n  if (!n.json.date) return false;\n  const isFresh = new Date(n.json.date) > cutoff;\n\n  return isNew && isFresh;\n});\n\n// Берем 10 штук для ИИ\nreturn filtered.slice(0, 10);\n"
+      },
+      "id": "02108391-c595-4d3c-8a30-bf8533baaf67",
+      "name": "Фильтр Дубликатов",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4720,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Берем полные данные из фильтра, игнорируя обрезанные данные от базы\nconst items = $('Фильтр Дубликатов').all(); \nif (items.length === 0) return [];\n\nconst newsList = items.map((n, i) => ({\n  id: i,\n  title: n.json.title || \"\",\n  text: (n.json.content || \"\").substring(0, 600)\n}));\n\nconst promptText = `You are a professional translator. \nTask: Translate news from English to Russian.\n\nRULES:\n1. Translate \"title\" -> \"ru_title\".\n2. Translate \"text\" -> \"ru_text\".\n3. Summary (1 sentence) -> \"sum\".\n4. Output ONLY a valid JSON array.\n\nINPUT:\n${JSON.stringify(newsList)}`;\n\nreturn [{\n  json: {\n    model: 'gemma-4-e4b',\n    messages: [\n      { role: 'system', content: 'You strictly output JSON arrays and translate everything to Russian.' },\n      { role: 'user', content: promptText }\n    ],\n    temperature: 0.1,\n    max_tokens: 8192\n  }\n}];"
+      },
+      "id": "b9e54bc1-c52f-466a-93cc-3c47df79dac5",
+      "name": "Для ИИ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5120,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:1234/v1/chat/completions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "2d33a2ea-631b-4032-9c76-c5963b58b544",
+      "name": "LLM Studio API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        5328,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let aiData = [];\ntry {\n  const aiRaw = $input.first().json?.choices?.[0]?.message?.content || '';\n  const jsonMatch = aiRaw.match(/\\[[\\s\\S]*\\]/);\n  if (jsonMatch) aiData = JSON.parse(jsonMatch[0]);\n} catch(e) {\n  console.error('Ошибка парсинга:', e.message);\n}\n\nconst originals = $('Фильтр Дубликатов').all();\n\nreturn originals.map((origItem, i) => {\n  const orig = origItem.json;\n  const ai = aiData.find(item => item.id === i) || {};\n\n  // Берем русский перевод, если он есть и не пустой. Иначе — оригинал.\n  const finalTitle = (ai.ru_title && String(ai.ru_title).trim() !== '') ? ai.ru_title : orig.title;\n  const finalContent = (ai.ru_text && String(ai.ru_text).trim() !== '') ? ai.ru_text : orig.content;\n\n  return {\n    json: {\n      title: finalTitle,\n      summary: ai.sum || '', // Выжимка от ИИ\n      content: (finalContent || '').substring(0, 800),\n      url: orig.url,\n      source: orig.source\n    }\n  };\n});"
+      },
+      "id": "340d5bb5-f10e-4158-a1b5-27105b12c78b",
+      "name": "Парсинг ответа ИИ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5536,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"chat_id\": \"{{ $env.TELEGRAM_MODERATION_CHAT_ID || '-100XXXXXXXXXX' }}\", \"text\": \"<b>\" + ($json.title || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"</b>\\n\\n\" + ($json.content || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"\\n\\n<a href=\\\"\" + $json.url + \"\\\">Источник</a>\", \"parse_mode\": \"HTML\", \"reply_markup\": { \"inline_keyboard\": [[ { \"text\": \"❌ Не берём\", \"callback_data\": \"skip|\" + $json.id }, { \"text\": \"📋 Берём\", \"callback_data\": \"queue|\" + $json.id }, { \"text\": \"🚨 Срочно\", \"callback_data\": \"urgent|\" + $json.id } ]] } }) }}",
+        "options": {}
+      },
+      "id": "36bcfaae-b7f5-4b0d-97c1-291b646a74f2",
+      "name": "Telegram (группа с кнопками)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        5984,
+        928
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "0mCqOZdb9h2JCdMM",
+          "mode": "list",
+          "cachedResultName": "table",
+          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/0mCqOZdb9h2JCdMM"
+        },
+        "filters": {
+          "conditions": []
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3840,
+        928
+      ],
+      "id": "12cc1293-27a3-4be1-a04a-5947223870b2",
+      "name": "Чтение Базы",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        3520,
+        960
+      ],
+      "id": "ec78743c-6671-4fd6-aa3e-6d086dd12a47",
+      "name": "Schedule Trigger",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "m3MeA93VtsWNJw4e",
+          "mode": "list",
+          "cachedResultName": "Queue",
+          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "title": "={{ $json.title }}",
+            "content": "={{ $json.content }}",
+            "url": "={{ $json.url }}",
+            "status": "pending"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "3816ffba-c58e-47b3-b595-7e781f3fd3b2",
+      "name": "Сохранить в Queue (pending)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        5712,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "0mCqOZdb9h2JCdMM",
+          "mode": "list",
+          "cachedResultName": "table",
+          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/0mCqOZdb9h2JCdMM"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $json.url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "8914ee47-9822-44db-9107-9c40e4a1f9dc",
+      "name": "Записать URL в дедуп",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4928,
+        928
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Источники": {
+      "main": [
+        [
+          {
+            "node": "Запрос RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Запрос RSS": {
+      "main": [
+        [
+          {
+            "node": "Парсинг RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Парсинг RSS": {
+      "main": [
+        [
+          {
+            "node": "Фильтр Дубликатов",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Фильтр Дубликатов": {
+      "main": [
+        [
+          {
+            "node": "Записать URL в дедуп",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Для ИИ": {
+      "main": [
+        [
+          {
+            "node": "LLM Studio API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Studio API": {
+      "main": [
+        [
+          {
+            "node": "Парсинг ответа ИИ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Парсинг ответа ИИ": {
+      "main": [
+        [
+          {
+            "node": "Сохранить в Queue (pending)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Чтение Базы": {
+      "main": [
+        [
+          {
+            "node": "Источники",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Чтение Базы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать URL в дедуп": {
+      "main": [
+        [
+          {
+            "node": "Для ИИ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить в Queue (pending)": {
+      "main": [
+        [
+          {
+            "node": "Telegram (группа с кнопками)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a8584359-b17d-44bb-8b60-1673c0446937",
+  "meta": {
+    "instanceId": "b60510a1c42de69393184a32dd9357985273cd9ad91d3b831d2d1f02c35e373b"
+  },
+  "id": "JQWPBC2gXvYrgvIW",
+  "tags": []
+}

@@ -1,0 +1,15 @@
+# Secrets & Environment variables
+.env
+*.token
+credentials.json
+
+# Local database and state
+n8n_data/
+*.sqlite
+*.db
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

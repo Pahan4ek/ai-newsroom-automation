@@ -1,0 +1,660 @@
+{
+  "name": "NEWS COMBO - Обработка кнопок",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "6378a896-51ab-4977-90f0-de2b755b2e2a",
+      "name": "Polling каждые 10 сек",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        1312,
+        -624
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const offset = $getWorkflowStaticData('global').offset || 0;\nreturn [{ json: { offset } }];\n"
+      },
+      "id": "aee25069-a815-4815-b26f-7bd033fe9c9a",
+      "name": "Получить offset",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        -624
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/getUpdates",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "offset",
+              "value": "={{ $json.offset }}"
+            },
+            {
+              "name": "timeout",
+              "value": "0"
+            },
+            {
+              "name": "allowed_updates",
+              "value": "[\"callback_query\"]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "978437cc-6b55-4c54-898c-3b471a5b7541",
+      "name": "getUpdates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1760,
+        -624
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst updates = data.result || [];\nif (updates.length === 0) return [];\nconst lastId = updates[updates.length - 1].update_id;\n$getWorkflowStaticData('global').offset = lastId + 1;\nconst result = [];\nfor (const upd of updates) {\n  const cb = upd.callback_query;\n  if (!cb) continue;\n  const parts = (cb.data || '').split('|');\n  const action = parts[0];\n  const rowId = parts[1] || '';\n  result.push({ json: {\n    action, rowId,\n    chatId: cb.message?.chat?.id,\n    messageId: cb.message?.message_id,\n    callbackQueryId: cb.id,\n    from: cb.from?.first_name || 'Редактор'\n  }});\n}\nreturn result;\n"
+      },
+      "id": "4d62f95b-25fb-4a37-821b-f394444095a7",
+      "name": "Парсинг апдейтов",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1968,
+        -624
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "skip",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1a650f08-4fe2-4e1c-9cf7-fa34ad2d5c23",
+      "name": "Не берём?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        -624
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"callback_query_id\": \"{{ $json.callbackQueryId }}\", \"text\": \"❌ {{ $json.from }}: не берём\", \"show_alert\": false }",
+        "options": {}
+      },
+      "id": "6bc4b81a-7f8e-4613-91b4-7ae6f846a7f7",
+      "name": "Ответ: не берём",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2416,
+        -752
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "urgent",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e54bb5e2-8c07-4be4-8b32-fd2df9d3e91c",
+      "name": "Срочно?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2416,
+        -512
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"callback_query_id\": $('Парсинг апдейтов').first().json.callbackQueryId,\n    \"text\": `🚨 ${$('Парсинг апдейтов').first().json.from}: опубликовано срочно!`,\n    \"show_alert\": true\n  }\n}}",
+        "options": {}
+      },
+      "id": "21fd0ce2-bc9f-488d-9e2f-f16b8d88c6d7",
+      "name": "Ответ: срочно",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2656,
+        -592
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"callback_query_id\": \"{{ $json.callbackQueryId }}\", \"text\": \"📋 {{ $json.from }}: добавлено в очередь\", \"show_alert\": false }",
+        "options": {}
+      },
+      "id": "3921e1a0-8798-43e3-80d2-e642b680314b",
+      "name": "Ответ: в очередь",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2640,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "m3MeA93VtsWNJw4e",
+          "mode": "list",
+          "cachedResultName": "Queue",
+          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ Number($('Парсинг апдейтов').first()?.json?.rowId || 0) }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "queued"
+          },
+          "matchingColumns": [
+            "url"
+          ],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "dfbe4b90-8588-4fca-b857-00a0263e22c0",
+      "name": "Статус: queued",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2896,
+        -352
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "m3MeA93VtsWNJw4e",
+          "mode": "list",
+          "cachedResultName": "Queue",
+          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ Number($('Парсинг апдейтов').first()?.json?.rowId || 0) }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "published"
+          },
+          "matchingColumns": [
+            "url"
+          ],
+          "schema": [
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "d31169b4-4fcd-44e2-956e-b4658c3a8d87",
+      "name": "Статус: published",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2944,
+        -608
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/deleteMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"chat_id\": $('Парсинг апдейтов').first().json.chatId,\n    \"message_id\": $('Парсинг апдейтов').first().json.messageId\n  }\n}}",
+        "options": {}
+      },
+      "id": "afa37a00-8ffa-40c9-bfdc-ca0b2b3905f3",
+      "name": "Удалить из группы",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3136,
+        -528
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "m3MeA93VtsWNJw4e",
+          "mode": "list",
+          "cachedResultName": "Queue",
+          "cachedResultUrl": "/projects/eKRFb3v4QdbIhYGZ/datatables/m3MeA93VtsWNJw4e"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ Number($('Парсинг апдейтов').first().json.rowId) }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2064,
+        -192
+      ],
+      "id": "53eb7585-7b96-42e3-ae6e-f0717635b5f8",
+      "name": "Get row(s)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "published",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        -192
+      ],
+      "id": "fba7a37f-ceee-45dc-a421-cd6807a249e2",
+      "name": "Не опубликовано?"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "7O3LhmBvuweE5JWY",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/7O3LhmBvuweE5JWY",
+          "cachedResultName": "Comment ai"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2528,
+        -208
+      ],
+      "id": "e140a691-182d-453e-8d69-8b962eb3781c",
+      "name": "Call 'Comment ai'"
+    }
+  ],
+  "pinData": {
+    "Polling каждые 10 сек": [
+      {
+        "json": {
+          "timestamp": "2026-04-26T18:19:00.004-04:00",
+          "Readable date": "April 26th 2026, 6:19:00 pm",
+          "Readable time": "6:19:00 pm",
+          "Day of week": "Sunday",
+          "Year": "2026",
+          "Month": "April",
+          "Day of month": "26",
+          "Hour": "18",
+          "Minute": "19",
+          "Second": "00",
+          "Timezone": "America/New_York (UTC-04:00)"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Polling каждые 10 сек": {
+      "main": [
+        [
+          {
+            "node": "Получить offset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить offset": {
+      "main": [
+        [
+          {
+            "node": "getUpdates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getUpdates": {
+      "main": [
+        [
+          {
+            "node": "Парсинг апдейтов",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Парсинг апдейтов": {
+      "main": [
+        [
+          {
+            "node": "Не берём?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Не берём?": {
+      "main": [
+        [
+          {
+            "node": "Ответ: не берём",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Срочно?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ответ: не берём": {
+      "main": [
+        [
+          {
+            "node": "Статус: published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Срочно?": {
+      "main": [
+        [
+          {
+            "node": "Ответ: срочно",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ответ: в очередь",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Статус: published": {
+      "main": [
+        [
+          {
+            "node": "Удалить из группы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ответ: в очередь": {
+      "main": [
+        [
+          {
+            "node": "Статус: queued",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Статус: queued": {
+      "main": [
+        [
+          {
+            "node": "Удалить из группы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)": {
+      "main": [
+        [
+          {
+            "node": "Не опубликовано?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Не опубликовано?": {
+      "main": [
+        [
+          {
+            "node": "Call 'Comment ai'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Comment ai'": {
+      "main": [
+        [
+          {
+            "node": "Статус: published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "70d46a0f-89f6-4df5-88f0-6867dde6dfea",
+  "meta": {
+    "instanceId": "b60510a1c42de69393184a32dd9357985273cd9ad91d3b831d2d1f02c35e373b"
+  },
+  "id": "CK3U2hY0x5bWWc6H",
+  "tags": []
+}

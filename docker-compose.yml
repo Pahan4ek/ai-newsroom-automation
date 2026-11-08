@@ -1,0 +1,27 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n-newsroom
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - NODE_ENV=production
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Europe/Kyiv}
+      # Telegram Credentials passed to n8n expressions
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_MODERATION_CHAT_ID=${TELEGRAM_MODERATION_CHAT_ID}
+      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
+      - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:1234/v1/chat/completions}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    extra_hosts:
+      # Allows n8n container to connect to host-running local LLM (LM Studio / Ollama)
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  n8n_data:
