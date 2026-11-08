@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const news = $('When called by another workflow').first().json;\nconst msg = $input.first().json?.choices?.[0]?.message || {};\nconst aiComment = (msg.content || msg.reasoning_content || '').trim();\n\nconst title = (news.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst content = (news.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst comment = aiComment.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst url = news.url || '';\nconst source = news.source || 'Источник';\n\nconst commentBlock = comment ? '\\n\\n💬 <i>' + comment + '</i>' : '';\n\nconst text = '<b>' + title + '</b>\\n\\n'\n  + content\n  + commentBlock\n  + '\\n\\n<a href=\"' + url + '\">' + source + '</a>';\n\nreturn [{ json: { text: text, chat_id: '{{ $env.TELEGRAM_CHANNEL_ID || '@your_channel_or_id' }}' } }];"
+        "jsCode": "const news = $('When called by another workflow').first().json;\nconst msg = $input.first().json?.choices?.[0]?.message || {};\n// content only: falling back to reasoning_content would post the model's chain of thought\nconst aiComment = (msg.content || '').trim();\n\nconst title = (news.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst content = (news.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst comment = aiComment.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst url = news.url || '';\nconst source = news.source || 'Источник';\n\nconst commentBlock = comment ? '\\n\\n💬 <i>' + comment + '</i>' : '';\n\nconst text = '<b>' + title + '</b>\\n\\n'\n  + content\n  + commentBlock\n  + '\\n\\n<a href=\"' + url + '\">' + source + '</a>';\n\nreturn [{ json: { text } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -61,10 +61,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/sendMessage",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text, parse_mode: 'HTML' }) }}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHANNEL_ID, text: $json.text, parse_mode: 'HTML' }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

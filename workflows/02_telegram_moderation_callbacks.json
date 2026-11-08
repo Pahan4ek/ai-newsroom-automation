@@ -37,7 +37,7 @@
     },
     {
       "parameters": {
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/getUpdates",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/getUpdates",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -114,10 +114,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/answerCallbackQuery",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"callback_query_id\": \"{{ $json.callbackQueryId }}\", \"text\": \"❌ {{ $json.from }}: не берём\", \"show_alert\": false }",
+        "jsonBody": "={{ JSON.stringify({ callback_query_id: $json.callbackQueryId, text: '❌ ' + $json.from + ': не берём', show_alert: false }) }}",
         "options": {}
       },
       "id": "6bc4b81a-7f8e-4613-91b4-7ae6f846a7f7",
@@ -164,7 +164,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/answerCallbackQuery",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{\n  {\n    \"callback_query_id\": $('Парсинг апдейтов').first().json.callbackQueryId,\n    \"text\": `🚨 ${$('Парсинг апдейтов').first().json.from}: опубликовано срочно!`,\n    \"show_alert\": true\n  }\n}}",
@@ -182,10 +182,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/answerCallbackQuery",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/answerCallbackQuery",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"callback_query_id\": \"{{ $json.callbackQueryId }}\", \"text\": \"📋 {{ $json.from }}: добавлено в очередь\", \"show_alert\": false }",
+        "jsonBody": "={{ JSON.stringify({ callback_query_id: $json.callbackQueryId, text: '📋 ' + $json.from + ': добавлено в очередь', show_alert: false }) }}",
         "options": {}
       },
       "id": "3921e1a0-8798-43e3-80d2-e642b680314b",
@@ -354,7 +354,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN' }}/deleteMessage",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/deleteMessage",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{\n  {\n    \"chat_id\": $('Парсинг апдейтов').first().json.chatId,\n    \"message_id\": $('Парсинг апдейтов').first().json.messageId\n  }\n}}",
