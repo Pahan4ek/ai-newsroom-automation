@@ -5,7 +5,7 @@ services:
     container_name: n8n-newsroom
     restart: unless-stopped
     ports:
-      - "5678:5678"
+      - "${N8N_BIND_ADDR:-127.0.0.1}:${N8N_HOST_PORT:-5678}:5678"
     environment:
       - N8N_HOST=${N8N_HOST:-localhost}
       - N8N_PORT=5678
@@ -13,12 +13,27 @@ services:
       - NODE_ENV=production
       - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Europe/Kyiv}
+      - TZ=${GENERIC_TIMEZONE:-Europe/Kyiv}
+      # Security & Cookies
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false
       # n8n 2.0+ blocks $env in expressions by default. The workflows read tokens and IDs from env,
       # so access has to be switched back on.
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_MODERATION_CHAT_ID=${TELEGRAM_MODERATION_CHAT_ID}
-      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
+      # Execution pruning & SQLite size management
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE:-168}
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=${EXECUTIONS_DATA_PRUNE_MAX_COUNT:-10000}
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=none
+      - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
+      - DB_SQLITE_VACUUM_ON_STARTUP=true
+      # Required Telegram secrets
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
+      - TELEGRAM_MODERATION_CHAT_ID=${TELEGRAM_MODERATION_CHAT_ID:?TELEGRAM_MODERATION_CHAT_ID is required}
+      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID:?TELEGRAM_CHANNEL_ID is required}
+      # LLM backend configuration
       - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:1234/v1/chat/completions}
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
@@ -29,6 +44,17 @@ services:
     extra_hosts:
       # lets the container reach a model server running on the host (LM Studio / Ollama)
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   n8n_data:
