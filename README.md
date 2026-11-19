@@ -83,6 +83,27 @@ All LLM calls go to `LLM_API_URL` with `Authorization: Bearer $LLM_API_KEY`.
 | Ollama on the host | `http://host.docker.internal:11434/v1/chat/completions` | e.g. `qwen2.5:7b` |
 | OpenAI / OpenRouter / Groq | the provider's chat completions URL | a model the provider serves |
 
+### Environment variables
+
+The deployment is configured via `.env` (copied from `.env.example`):
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | Yes | — | Bot token from @BotFather |
+| `TELEGRAM_MODERATION_CHAT_ID` | Yes | — | Private moderation group ID |
+| `TELEGRAM_CHANNEL_ID` | Yes | — | Target channel ID (e.g. `@channel`) |
+| `LLM_API_URL` | No | `http://host.docker.internal:1234/v1/chat/completions` | OpenAI-compatible chat completions endpoint |
+| `LLM_API_KEY` | No | (empty) | API key for cloud LLM providers |
+| `LLM_MODEL` | No | (empty) | Model override (defaults to `gemma-4-e4b`) |
+| `N8N_BIND_ADDR` | No | `127.0.0.1` | Host IP address to bind the n8n port to |
+| `N8N_HOST_PORT` | No | `5678` | Host port mapped to n8n |
+| `N8N_SECURE_COOKIE` | No | `false` | Enable if serving behind an HTTPS proxy |
+| `GENERIC_TIMEZONE` | No | `Europe/Kyiv` | Timezone for n8n workflows and container (`TZ`) |
+| `EXECUTIONS_DATA_MAX_AGE` | No | `168` | Prune execution logs older than N hours |
+| `EXECUTIONS_DATA_PRUNE_MAX_COUNT` | No | `10000` | Prune execution logs when count exceeds N |
+
+Execution data pruning is enabled by default (`EXECUTIONS_DATA_PRUNE=true`, saving only errors and manual runs) alongside `DB_SQLITE_VACUUM_ON_STARTUP=true` to prevent the SQLite database from bloating due to 10-second polling.
+
 ## Testing
 
 `tests/e2e/run.sh` runs all four workflows on a real n8n 2.46.6 (SQLite in a temp dir) against a small Python mock of the feeds, the LLM and the Telegram Bot API. It creates the data tables, imports the workflows through the CLI, publishes them and checks the queue after each step: collection and dedup, three different buttons pressed within one poll, the scheduled publish, plus what reached the mock (cards, channel posts, deleted cards, LLM auth header).
@@ -100,7 +121,7 @@ GitHub Actions runs it on every push. The script works on its own copy of the wo
 - **Dedup is by URL only.** The same story from two outlets will reach the moderation chat twice. That's the editor's job for now.
 - **URLs are marked as seen before the LLM call.** If the LLM is down, those stories are skipped rather than retried every 10 minutes.
 - **LLM output is parsed leniently.** Workflow 01 pulls the first JSON array out of the reply. If parsing fails, the original English text goes to moderation, so nothing is lost silently.
-- **Tokens live in env vars**, which is why `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` is set in `docker-compose.yml`. n8n credentials would be the cleaner option for a shared instance.
+- **Tokens live in env vars**, which is why `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` is set in `docker-compose.yml`. Telegram secrets are enforced as required (`${VAR:?VAR is required}`) at container startup. n8n credentials would be the cleaner option for a shared instance.
 
 ## License
 
