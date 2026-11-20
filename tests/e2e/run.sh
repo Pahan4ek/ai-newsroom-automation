@@ -84,8 +84,8 @@ curl -sf -X POST http://127.0.0.1:$MOCK_PORT/_control/updates -d '[
  {"update_id":2,"callback_query":{"id":"cb2","data":"queue|2","from":{"first_name":"Ed"},"message":{"chat":{"id":-1001},"message_id":8}}},
  {"update_id":3,"callback_query":{"id":"cb3","data":"skip|3","from":{"first_name":"Ed"},"message":{"chat":{"id":-1001},"message_id":9}}}]' > /dev/null
 publish CK3U2hY0x5bWWc6H; sleep 25
-expect "02 urgent / queue / skip in one poll" "published queued published"
-kick t03; expect "03 publishes the queued story" "published published published"
+expect "02 urgent / queue / skip in one poll" "published queued skipped"
+kick t03; expect "03 publishes the queued story" "published published skipped"
 
 python3 - "$T/requests.jsonl" <<'EOF'
 import json, sys
