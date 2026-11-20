@@ -55,7 +55,9 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "978437cc-6b55-4c54-898c-3b471a5b7541",
       "name": "getUpdates",
@@ -68,7 +70,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const data = $input.first().json;\nconst updates = data.result || [];\nif (updates.length === 0) return [];\nconst lastId = updates[updates.length - 1].update_id;\n$getWorkflowStaticData('global').offset = lastId + 1;\nconst result = [];\nfor (const upd of updates) {\n  const cb = upd.callback_query;\n  if (!cb) continue;\n  const parts = (cb.data || '').split('|');\n  const action = parts[0];\n  const rowId = parts[1] || '';\n  result.push({ json: {\n    action, rowId,\n    chatId: cb.message?.chat?.id,\n    messageId: cb.message?.message_id,\n    callbackQueryId: cb.id,\n    from: cb.from?.first_name || 'Редактор'\n  }});\n}\nreturn result;\n"
+        "jsCode": "const data = $input.first().json;\nconst updates = data.result || [];\nif (updates.length === 0) return [];\nconst lastId = updates[updates.length - 1].update_id;\n$getWorkflowStaticData('global').offset = lastId + 1;\nconst result = [];\nconst seenRowIds = new Set();\nconst modChatId = $env.TELEGRAM_MODERATION_CHAT_ID ? String($env.TELEGRAM_MODERATION_CHAT_ID) : null;\nconst allowedActions = new Set(['skip', 'queue', 'urgent']);\n\nfor (const upd of updates) {\n  const cb = upd.callback_query;\n  if (!cb) continue;\n  if (modChatId && String(cb.message?.chat?.id) !== modChatId) {\n    continue;\n  }\n  const parts = (cb.data || '').split('|');\n  const action = parts[0];\n  const rowId = parts[1] || '';\n  if (!allowedActions.has(action)) continue;\n  if (!rowId || !/^\\d+$/.test(rowId)) continue;\n  if (seenRowIds.has(rowId)) continue;\n  seenRowIds.add(rowId);\n  result.push({ json: {\n    action, rowId,\n    chatId: cb.message?.chat?.id,\n    messageId: cb.message?.message_id,\n    callbackQueryId: cb.id,\n    from: cb.from?.first_name || 'Редактор'\n  }});\n}\nreturn result;\n"
       },
       "id": "4d62f95b-25fb-4a37-821b-f394444095a7",
       "name": "Парсинг апдейтов",
@@ -118,7 +120,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ callback_query_id: $json.callbackQueryId, text: '❌ ' + $json.from + ': не берём', show_alert: false }) }}",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "6bc4b81a-7f8e-4613-91b4-7ae6f846a7f7",
       "name": "Ответ: не берём",
@@ -127,7 +131,8 @@
       "position": [
         2416,
         -752
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -167,8 +172,10 @@
         "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/answerCallbackQuery",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{\n  {\n    \"callback_query_id\": $('Парсинг апдейтов').item.json.callbackQueryId,\n    \"text\": `🚨 ${$('Парсинг апдейтов').item.json.from}: опубликовано срочно!`,\n    \"show_alert\": true\n  }\n}}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ callback_query_id: $json.callbackQueryId, text: '🚨 ' + $json.from + ': публикую...', show_alert: false }) }}",
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "21fd0ce2-bc9f-488d-9e2f-f16b8d88c6d7",
       "name": "Ответ: срочно",
@@ -177,7 +184,8 @@
       "position": [
         2656,
         -592
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -186,7 +194,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ callback_query_id: $json.callbackQueryId, text: '📋 ' + $json.from + ': добавлено в очередь', show_alert: false }) }}",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "3921e1a0-8798-43e3-80d2-e642b680314b",
       "name": "Ответ: в очередь",
@@ -195,7 +205,8 @@
       "position": [
         2640,
         -384
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -354,7 +365,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{\n  {\n    \"chat_id\": $('Парсинг апдейтов').item.json.chatId,\n    \"message_id\": $('Парсинг апдейтов').item.json.messageId\n  }\n}}",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "afa37a00-8ffa-40c9-bfdc-ca0b2b3905f3",
       "name": "Удалить из группы",
@@ -363,7 +376,8 @@
       "position": [
         3136,
         -528
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -402,14 +416,22 @@
           "conditions": [
             {
               "leftValue": "={{ $json.status }}",
-              "rightValue": "published",
+              "rightValue": "pending",
               "operator": {
                 "type": "string",
-                "operation": "notEquals"
+                "operation": "equals"
+              }
+            },
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "queued",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
               }
             }
           ],
-          "combinator": "and"
+          "combinator": "or"
         },
         "options": {}
       },
@@ -452,6 +474,98 @@
       ],
       "id": "e140a691-182d-453e-8d69-8b962eb3781c",
       "name": "Call 'Comment ai'"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "news_queue"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "={{ Number($('Парсинг апдейтов').item.json.rowId || 0) }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "skipped"
+          },
+          "matchingColumns": [
+            "url"
+          ],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c1a2b3d4-5e6f-4a1b-8c2d-3e4f5a6b7c8d",
+      "name": "Статус: skipped",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2656,
+        -752
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "queue",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e81f14b2-c0e8-429a-9e21-0a694119d83c",
+      "name": "В очередь?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        -384
+      ]
     }
   ],
   "pinData": {},
@@ -522,7 +636,7 @@
       "main": [
         [
           {
-            "node": "Статус: published",
+            "node": "Статус: skipped",
             "type": "main",
             "index": 0
           }
@@ -545,7 +659,7 @@
         ],
         [
           {
-            "node": "Ответ: в очередь",
+            "node": "В очередь?",
             "type": "main",
             "index": 0
           }
@@ -617,6 +731,28 @@
           }
         ]
       ]
+    },
+    "Статус: skipped": {
+      "main": [
+        [
+          {
+            "node": "Удалить из группы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "В очередь?": {
+      "main": [
+        [
+          {
+            "node": "Ответ: в очередь",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -625,9 +761,7 @@
     "binaryMode": "separate"
   },
   "versionId": "70d46a0f-89f6-4df5-88f0-6867dde6dfea",
-  "meta": {
-    "instanceId": "b60510a1c42de69393184a32dd9357985273cd9ad91d3b831d2d1f02c35e373b"
-  },
+  "meta": {},
   "id": "CK3U2hY0x5bWWc6H",
   "tags": []
 }
