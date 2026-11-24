@@ -100,6 +100,8 @@ checks = {
     "all 3 cards deleted": sorted(b["message_id"] for b in tg("deleteMessage")) == [7, 8, 9],
     "LLM gets Bearer key and model override": bool(llm) and all(r["auth"] == "Bearer sk-test" and r["body"]["model"] == "test-model" for r in llm),
     "HTML in the comment is escaped": all("&lt;" in p["text"] for p in posts),
+    "URL with & is escaped in Telegram cards": any("&amp;ref=news" in c["text"] for c in cards),
+    "URL with & is escaped in channel posts": any("&amp;ref=news" in p["text"] for p in posts),
 }
 for k, v in checks.items(): print(("ok  " if v else "FAIL"), k)
 sys.exit(0 if all(checks.values()) else 1)

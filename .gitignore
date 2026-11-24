@@ -13,3 +13,8 @@ n8n_data/
 Thumbs.db
 .idea/
 .vscode/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
