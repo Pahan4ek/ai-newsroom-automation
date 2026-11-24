@@ -14,7 +14,8 @@ def rss():
     now = datetime.now(timezone.utc)
     items = ""
     for i, (t, d) in enumerate([("Test story one", "First body & <b>tags</b>"), ("Second \"quoted\" story", "Second body"), ("Third story", "Third body")]):
-        items += (f"<item><title><![CDATA[{t}]]></title><link>https://example.com/s{i}?param=1&amp;ref=news</link>" if i == 0 else f"<item><title><![CDATA[{t}]]></title><link>https://example.com/s{i}</link>"
+        link = f"https://example.com/s{i}?param=1&amp;ref=news" if i == 0 else f"https://example.com/s{i}"
+        items += (f"<item><title><![CDATA[{t}]]></title><link>{link}</link>"
                   f"<description><![CDATA[{d}]]></description><pubDate>{format_datetime(now - timedelta(minutes=5 + i))}</pubDate></item>")
     old = format_datetime(now - timedelta(days=3))
     items += f"<item><title>Old story</title><link>https://example.com/old</link><description>x</description><pubDate>{old}</pubDate></item>"
