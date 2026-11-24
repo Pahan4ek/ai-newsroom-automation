@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "return [\n  // 🌍 Мировые гиганты\n  { json: { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World' } },\n  { json: { url: 'http://rss.cnn.com/rss/edition.rss', name: 'CNN' } },\n  { json: { url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', name: 'NYT' } },\n  { json: { url: 'https://www.theguardian.com/world/rss', name: 'The Guardian' } },\n  { json: { url: 'https://feeds.washingtonpost.com/rss/world', name: 'Washington Post' } },\n  { json: { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'Wall Street Journal' } },\n  { json: { url: 'https://chaski.huffpost.com/us/auto/vertical/world-news', name: 'HuffPost' } },\n\n  // 🇺🇦 Локальные\n  { json: { url: 'https://www.pravda.com.ua/rus/rss/view_news/', name: 'УкрПравда' } },\n\n  // 💻 Технологии и наука\n  { json: { url: 'https://techcrunch.com/feed/', name: 'TechCrunch' } },\n  { json: { url: 'https://www.theverge.com/rss/index.xml', name: 'The Verge' } },\n  { json: { url: 'https://www.nasa.gov/rss/dyn/breaking_news.rss', name: 'NASA' } },\n\n  // 🧠 Глубокая аналитика\n  { json: { url: 'https://time.com/feed/', name: 'TIME' } },\n  { json: { url: 'https://www.wired.com/feed/rss', name: 'WIRED' } }\n];\n"
+        "jsCode": "return [\n  // 🌍 Мировые гиганты\n  { json: { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World' } },\n  { json: { url: 'https://rss.cnn.com/rss/edition.rss', name: 'CNN' } },\n  { json: { url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', name: 'NYT' } },\n  { json: { url: 'https://www.theguardian.com/world/rss', name: 'The Guardian' } },\n  { json: { url: 'https://feeds.washingtonpost.com/rss/world', name: 'Washington Post' } },\n  { json: { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'Wall Street Journal' } },\n  { json: { url: 'https://chaski.huffpost.com/us/auto/vertical/world-news', name: 'HuffPost' } },\n\n  // 🇺🇦 Локальные\n  { json: { url: 'https://www.pravda.com.ua/rus/rss/view_news/', name: 'УкрПравда' } },\n\n  // 💻 Технологии и наука\n  { json: { url: 'https://techcrunch.com/feed/', name: 'TechCrunch' } },\n  { json: { url: 'https://www.theverge.com/rss/index.xml', name: 'The Verge' } },\n  { json: { url: 'https://www.nasa.gov/rss/dyn/breaking_news.rss', name: 'NASA' } },\n\n  // 🧠 Глубокая аналитика\n  { json: { url: 'https://time.com/feed/', name: 'TIME' } },\n  { json: { url: 'https://www.wired.com/feed/rss', name: 'WIRED' } }\n];\n"
       },
       "id": "6e6dbde0-fe55-481e-b5c0-078e0bc85190",
       "name": "Источники",
@@ -33,7 +33,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// поддержка RSS (item) и Atom (entry) форматов\nfunction getTag(tag, text) {\n  // Строковая конкатенация вместо template literal — избегаем проблем с escape в JSON\n  var regex = new RegExp('<' + tag + '[^>]*>([\\\\s\\\\S]*?)<\\\\/' + tag + '>', 'i');\n  var match = text.match(regex);\n  if (!match) return '';\n  return match[1].replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/gi, '$1').trim();\n}\n\nfunction getLink(text) {\n  // Atom: <link href=\"...\" />\n  var atomHref = text.match(/<link[^>]+href=[\"']([^\"']+)[\"'][^>]*\\/?>/);\n  if (atomHref) return atomHref[1].trim();\n  // RSS: <link>url</link>\n  return getTag('link', text);\n}\n\nvar result = [];\nfor (var item of $input.all()) {\n  var xml = item.json.data || '';\n  if (!xml) continue;\n  var src = item.json.name || 'News';\n\n  var isAtom = xml.includes('<entry>');\n  var openTag = isAtom ? '<entry>' : '<item>';\n  var closeTag = isAtom ? '</entry>' : '</item>';\n  var dateTag = isAtom ? 'updated' : 'pubDate';\n\n  var parts = xml.split(openTag);\n  for (var i = 1; i < parts.length && i <= 5; i++) {\n    var b = parts[i].split(closeTag)[0];\n    var title = getTag('title', b);\n    var url = getLink(b);\n    var content = getTag('description', b).replace(/<[^>]+>/g, '').trim()\n      || getTag('summary', b).replace(/<[^>]+>/g, '').trim();\n    var date = getTag(dateTag, b);\n\n    if (title && url) {\n      result.push({ json: { source: src, title: title, url: url, content: content, date: date } });\n    }\n  }\n}\nreturn result;\n"
+        "jsCode": "function decodeHtmlEntities(str) {\n  if (!str) return '';\n  var entities = {\n    'quot': '\"',\n    'apos': \"'\",\n    '#39': \"'\",\n    'lt': '<',\n    'gt': '>',\n    'nbsp': ' ',\n    'amp': '&'\n  };\n  var s = str\n    .replace(/&#(\\d+);/g, function(m, dec) {\n      try { return String.fromCodePoint(parseInt(dec, 10)); } catch (e) { return m; }\n    })\n    .replace(/&#x([0-9a-f]+);/gi, function(m, hex) {\n      try { return String.fromCodePoint(parseInt(hex, 16)); } catch (e) { return m; }\n    });\n  for (var round = 0; round < 2; round++) {\n    s = s.replace(/&(quot|apos|#39|lt|gt|nbsp|amp);/gi, function(m, name) {\n      return entities[name.toLowerCase()] || m;\n    });\n  }\n  return s;\n}\n\nfunction stripTags(str) {\n  if (!str) return '';\n  return str.replace(/<[^>]+>/g, '');\n}\n\nfunction cleanText(str) {\n  if (!str) return '';\n  var s = stripTags(str);\n  s = decodeHtmlEntities(s);\n  s = stripTags(s);\n  return s.trim();\n}\n\nfunction getTag(tag, text) {\n  var regex = new RegExp('<' + tag + '[^>]*>([\\\\s\\\\S]*?)<\\\\/' + tag + '>', 'i');\n  var match = text.match(regex);\n  if (!match) return '';\n  return match[1].replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/gi, '$1').trim();\n}\n\nfunction getLink(text) {\n  var altMatch = text.match(/<link\\b[^>]*\\brel=[\"']alternate[\"'][^>]*\\bhref=[\"']([^\"']+)[\"'][^>]*\\/?>/i)\n    || text.match(/<link\\b[^>]*\\bhref=[\"']([^\"']+)[\"'][^>]*\\brel=[\"']alternate[\"'][^>]*\\/?>/i);\n  if (altMatch) return decodeHtmlEntities(altMatch[1].trim());\n\n  var anyHrefMatch = text.match(/<link\\b[^>]*\\bhref=[\"']([^\"']+)[\"'][^>]*\\/?>/i);\n  if (anyHrefMatch) return decodeHtmlEntities(anyHrefMatch[1].trim());\n\n  return decodeHtmlEntities(getTag('link', text));\n}\n\nvar sources = [];\ntry { sources = $('Источники').all(); } catch (e) {}\n\nvar inputItems = $input.all();\nvar result = [];\n\nfor (var idx = 0; idx < inputItems.length; idx++) {\n  var item = inputItems[idx];\n  var xml = item.json.data || '';\n  if (!xml) continue;\n\n  var src = item.json.name;\n  if (!src) {\n    var pIdx = undefined;\n    if (item.pairedItem !== undefined && item.pairedItem !== null) {\n      if (typeof item.pairedItem === 'number') {\n        pIdx = item.pairedItem;\n      } else if (typeof item.pairedItem === 'object') {\n        pIdx = item.pairedItem.item !== undefined ? item.pairedItem.item : (Array.isArray(item.pairedItem) ? item.pairedItem[0]?.item : undefined);\n      }\n    }\n    if (pIdx !== undefined && sources[pIdx]?.json?.name) {\n      src = sources[pIdx].json.name;\n    } else if (sources[idx]?.json?.name) {\n      src = sources[idx].json.name;\n    }\n  }\n  if (!src) src = 'News';\n\n  var isAtom = /<entry\\b[^>]*>/i.test(xml);\n  var splitRegex = isAtom ? /<entry\\b[^>]*>/i : /<item\\b[^>]*>/i;\n  var closeTagRegex = isAtom ? /<\\/entry>/i : /<\\/item>/i;\n\n  var parts = xml.split(splitRegex);\n  for (var i = 1; i < parts.length && i <= 5; i++) {\n    var b = parts[i].split(closeTagRegex)[0];\n    var title = cleanText(getTag('title', b));\n    var url = getLink(b);\n    var rawContent = getTag('description', b)\n      || getTag('summary', b)\n      || getTag('content', b);\n    var content = cleanText(rawContent);\n    var date = isAtom\n      ? (getTag('updated', b) || getTag('published', b) || getTag('pubDate', b))\n      : (getTag('pubDate', b) || getTag('dc:date', b) || getTag('date', b));\n\n    if (title && url) {\n      result.push({ json: { source: src, title: title, url: url, content: content, date: date } });\n    }\n  }\n}\nreturn result;\n"
       },
       "id": "cff34d63-7ed6-4d57-a4b7-a9df94db0145",
       "name": "Парсинг RSS",
@@ -118,8 +118,10 @@
         "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ \"chat_id\": $env.TELEGRAM_MODERATION_CHAT_ID, \"text\": \"<b>\" + ($json.title || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"</b>\\n\\n\" + ($json.content || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"\\n\\n<a href=\\\"\" + $json.url + \"\\\">Источник</a>\", \"parse_mode\": \"HTML\", \"reply_markup\": { \"inline_keyboard\": [[ { \"text\": \"❌ Не берём\", \"callback_data\": \"skip|\" + $json.id }, { \"text\": \"📋 Берём\", \"callback_data\": \"queue|\" + $json.id }, { \"text\": \"🚨 Срочно\", \"callback_data\": \"urgent|\" + $json.id } ]] } }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ \"chat_id\": $env.TELEGRAM_MODERATION_CHAT_ID, \"text\": \"<b>\" + ($json.title || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"</b>\\n\\n\" + ($json.content || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"\\n\\n<a href=\\\"\" + ($json.url || \"\").replace(/&/g, \"&amp;\").replace(/\"/g, \"&quot;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\") + \"\\\">\" + ($json.source ? (\"Источник: \" + ($json.source + \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\")) : \"Источник\") + \"</a>\", \"parse_mode\": \"HTML\", \"reply_markup\": { \"inline_keyboard\": [[ { \"text\": \"❌ Не берём\", \"callback_data\": \"skip|\" + $json.id }, { \"text\": \"📋 Берём\", \"callback_data\": \"queue|\" + $json.id }, { \"text\": \"🚨 Срочно\", \"callback_data\": \"urgent|\" + $json.id } ]] } }) }}",
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "36bcfaae-b7f5-4b0d-97c1-291b646a74f2",
       "name": "Telegram (группа с кнопками)",
@@ -292,8 +294,8 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        4928,
-        928
+        5984,
+        1100
       ]
     }
   ],
@@ -336,7 +338,7 @@
       "main": [
         [
           {
-            "node": "Записать URL в дедуп",
+            "node": "Для ИИ",
             "type": "main",
             "index": 0
           }
@@ -387,22 +389,16 @@
         ]
       ]
     },
-    "Записать URL в дедуп": {
-      "main": [
-        [
-          {
-            "node": "Для ИИ",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Сохранить в Queue (pending)": {
       "main": [
         [
           {
             "node": "Telegram (группа с кнопками)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Записать URL в дедуп",
             "type": "main",
             "index": 0
           }
