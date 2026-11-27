@@ -71,8 +71,13 @@ publish() {
 kick() { curl -sf "http://127.0.0.1:$PORT/webhook/$1" > /dev/null; sleep 8; }
 statuses() { $C "$B/projects/$PID/data-tables/$QID/rows?take=50&skip=0" | json '" ".join(r["status"] for r in sorted(d["data"]["data"], key=lambda r: r["id"]))'; }
 seen_urls() { $C "$B/projects/$PID/data-tables/$SUID/rows?take=50&skip=0" | json '" ".join(sorted(r["url"] for r in d["data"]["data"]))'; }
-expect() { local got; got=$(statuses); if [ "$got" = "$2" ]; then echo "ok   $1: $got"; else echo "FAIL $1: got '$got', want '$2'"; exit 1; fi; }
-expect_seen() { local got; got=$(seen_urls); if [ "$got" = "$2" ]; then echo "ok   $1: $got"; else echo "FAIL $1: got '$got', want '$2'"; exit 1; fi; }
+dump_diag() {
+  echo "--- mock.log ---"; cat "$T/mock.log" || true
+  echo "--- requests.jsonl ---"; cat "$T/requests.jsonl" || true
+  echo "--- n8n.log (tail) ---"; tail -n 80 "$T/n8n.log" || true
+}
+expect() { local got; got=$(statuses); if [ "$got" = "$2" ]; then echo "ok   $1: $got"; else echo "FAIL $1: got '$got', want '$2'"; dump_diag; exit 1; fi; }
+expect_seen() { local got; got=$(seen_urls); if [ "$got" = "$2" ]; then echo "ok   $1: $got"; else echo "FAIL $1: got '$got', want '$2'"; dump_diag; exit 1; fi; }
 
 # 04 first: n8n refuses to publish a workflow whose sub-workflow isn't published
 publish 7O3LhmBvuweE5JWY; publish JQWPBC2gXvYrgvIW; publish m9W5tEdtoRyCvCUr
