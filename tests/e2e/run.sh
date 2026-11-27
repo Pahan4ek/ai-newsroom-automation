@@ -23,7 +23,7 @@ for f in src.glob("*.json"):
     d = json.loads(f.read_text(encoding="utf-8").replace("https://api.telegram.org/", f"http://127.0.0.1:{port}/"))
     for n in d["nodes"]:
         if n["name"] == "Источники":
-            n["parameters"]["jsCode"] = f"return [{{ json: {{ url: 'http://127.0.0.1:{port}/rss', name: 'Mock' }} }}];"
+            n["parameters"]["jsCode"] = f"return [{{ json: {{ url: 'http://127.0.0.1:{port}/rss', name: 'Mock1' }} }}, {{ json: {{ url: 'http://127.0.0.1:{port}/rss2', name: 'Mock2' }} }}];"
     sched = [n for n in d["nodes"] if n["type"] == "n8n-nodes-base.scheduleTrigger"]
     hook = {"01": "t01", "03": "t03"}.get(f.name[:2])
     if sched and hook:
@@ -57,7 +57,7 @@ json() { python3 -c "import json,sys;d=json.load(sys.stdin);print($1)"; }
 $C -X POST $B/owner/setup -d '{"email":"t@example.com","firstName":"T","lastName":"T","password":"Passw0rd!Test"}' > /dev/null
 $C -X POST $B/login -d '{"emailOrLdapLoginId":"t@example.com","password":"Passw0rd!Test"}' > /dev/null
 PID=$($C $B/projects/personal | json 'd["data"]["id"]')
-$C -X POST $B/projects/$PID/data-tables -d '{"name":"seen_urls","columns":[{"name":"url","type":"string"}]}' > /dev/null
+SUID=$($C -X POST $B/projects/$PID/data-tables -d '{"name":"seen_urls","columns":[{"name":"url","type":"string"}]}' | json 'd["data"]["id"]')
 QID=$($C -X POST $B/projects/$PID/data-tables \
   -d '{"name":"news_queue","columns":[{"name":"title","type":"string"},{"name":"content","type":"string"},{"name":"url","type":"string"},{"name":"status","type":"string"}]}' \
   | json 'd["data"]["id"]')
@@ -70,13 +70,28 @@ publish() {
 }
 kick() { curl -sf "http://127.0.0.1:$PORT/webhook/$1" > /dev/null; sleep 8; }
 statuses() { $C "$B/projects/$PID/data-tables/$QID/rows?take=50&skip=0" | json '" ".join(r["status"] for r in sorted(d["data"]["data"], key=lambda r: r["id"]))'; }
-expect() { local got; got=$(statuses); if [ "$got" = "$2" ]; then echo "ok   $1: $got"; else echo "FAIL $1: got '$got', want '$2'"; exit 1; fi; }
+seen_urls() { $C "$B/projects/$PID/data-tables/$SUID/rows?take=50&skip=0" | json '" ".join(sorted(r["url"] for r in d["data"]["data"]))'; }
+dump_diag() {
+  echo "--- mock.log ---"; cat "$T/mock.log" || true
+  echo "--- requests.jsonl ---"; cat "$T/requests.jsonl" || true
+  echo "--- n8n.log (tail) ---"; tail -n 80 "$T/n8n.log" || true
+}
+expect() { local got; got=$(statuses); if [ "$got" = "$2" ]; then echo "ok   $1: $got"; else echo "FAIL $1: got '$got', want '$2'"; dump_diag; exit 1; fi; }
+expect_seen() { local got; got=$(seen_urls); if [ "$got" = "$2" ]; then echo "ok   $1: $got"; else echo "FAIL $1: got '$got', want '$2'"; dump_diag; exit 1; fi; }
 
 # 04 first: n8n refuses to publish a workflow whose sub-workflow isn't published
 publish 7O3LhmBvuweE5JWY; publish JQWPBC2gXvYrgvIW; publish m9W5tEdtoRyCvCUr
 
-kick t01; expect "01 collects 3 fresh stories, skips the old one" "pending pending pending"
-kick t01; expect "01 again: nothing new (dedup)" "pending pending pending"
+curl -sf -X POST http://127.0.0.1:$MOCK_PORT/_control/llm -d '{"mode":"error"}' > /dev/null
+kick t01; expect "01 on LLM HTTP 500: queue empty" ""; expect_seen "01 on LLM HTTP 500: seen_urls empty" ""
+
+curl -sf -X POST http://127.0.0.1:$MOCK_PORT/_control/llm -d '{"mode":"garbage"}' > /dev/null
+kick t01; expect "01 on LLM garbage: queue empty" ""; expect_seen "01 on LLM garbage: seen_urls empty" ""
+
+curl -sf -X POST http://127.0.0.1:$MOCK_PORT/_control/llm -d '{"mode":"normal"}' > /dev/null
+kick t01; expect "01 collects 3 selected stories, skips old and rejected" "pending pending pending"
+expect_seen "01 writes all 4 normalized URLs (incl. rejected) to seen_urls" "https://example.com/s0?param=1 https://example.com/s1 https://example.com/s2 https://example.com/s3"
+kick t01; expect "01 again: nothing new (dedup incl. rejected)" "pending pending pending"
 
 # three different buttons pressed within one poll
 curl -sf -X POST http://127.0.0.1:$MOCK_PORT/_control/updates -d '[
@@ -92,6 +107,7 @@ import json, sys
 reqs = [json.loads(l) for l in open(sys.argv[1])]
 tg = lambda m: [r["body"] for r in reqs if r["path"].endswith("/" + m)]
 llm = [r for r in reqs if r["path"].endswith("/chat/completions")]
+translator_llm = [r for r in llm if "translator" in " ".join(m.get("content", "") for m in r["body"].get("messages", []))]
 cards = [b for b in tg("sendMessage") if b["chat_id"] == "-1001"]
 posts = [b for b in tg("sendMessage") if b["chat_id"] == "@testchan"]
 checks = {
@@ -99,6 +115,8 @@ checks = {
     "2 posts in the channel, each with the AI comment": len(posts) == 2 and all("<i>" in p["text"] for p in posts),
     "all 3 cards deleted": sorted(b["message_id"] for b in tg("deleteMessage")) == [7, 8, 9],
     "LLM gets Bearer key and model override": bool(llm) and all(r["auth"] == "Bearer sk-test" and r["body"]["model"] == "test-model" for r in llm),
+    "Translator LLM called 3 times (0 on dedup re-run)": len(translator_llm) == 3,
+    "Intra-batch duplicate URL was deduplicated before LLM": len(translator_llm) == 3 and len(json.loads(translator_llm[2]["body"]["messages"][1]["content"].split("INPUT:")[1].strip())) == 4,
     "HTML in the comment is escaped": all("&lt;" in p["text"] for p in posts),
     "URL with & is escaped in Telegram cards": any("&amp;ref=news" in c["text"] for c in cards),
     "URL with & is escaped in channel posts": any("&amp;ref=news" in p["text"] for p in posts),

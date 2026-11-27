@@ -46,7 +46,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Читаем базу и очищаем ссылки\nconst db = $('Чтение Базы').all()\n  .map(i => (i.json.url || '').trim().replace(/\\/$/, ''))\n  .filter(url => url !== '');\n\nconst news = $input.all();\nconst cutoff = new Date();\ncutoff.setHours(cutoff.getHours() - 24);\n\nconst filtered = news.filter(n => {\n  if (!n.json.url) return false;\n  if (!n.json.title || n.json.title.trim() === '') return false;\n\n  const currentUrl = n.json.url.trim().replace(/\\/$/, '');\n  const isNew = !db.includes(currentUrl);\n\n  if (!n.json.date) return false;\n  const isFresh = new Date(n.json.date) > cutoff;\n\n  return isNew && isFresh;\n});\n\n// Берем 10 штук для ИИ\nreturn filtered.slice(0, 10);\n"
+        "jsCode": "const TRACKING_PARAMS = new Set([\n  'fbclid',\n  'gclid',\n  'at_medium',\n  'at_campaign',\n  'ref',\n  'mc_cid',\n  'mc_eid',\n]);\n\nfunction isTrackingParam(key) {\n  const lower = key.toLowerCase();\n  return lower.startsWith('utm_') || TRACKING_PARAMS.has(lower);\n}\n\nfunction normalizeUrl(rawUrl) {\n  const trimmed = String(rawUrl || '').trim();\n  if (!trimmed) return '';\n\n  const hashIdx = trimmed.indexOf('#');\n  const noHash = hashIdx === -1 ? trimmed : trimmed.slice(0, hashIdx);\n\n  const qIdx = noHash.indexOf('?');\n  let base = qIdx === -1 ? noHash : noHash.slice(0, qIdx);\n  const query = qIdx === -1 ? '' : noHash.slice(qIdx + 1);\n\n  const schemeMatch = base.match(/^([a-zA-Z][a-zA-Z0-9+.-]*:\\/\\/[^/]+)(\\/.*)?$/);\n  if (schemeMatch) {\n    const origin = schemeMatch[1].toLowerCase();\n    const path = (schemeMatch[2] || '').replace(/\\/+$/, '');\n    base = origin + path;\n  } else {\n    base = base.replace(/\\/+$/, '');\n  }\n\n  if (!query) return base;\n\n  const pairs = [];\n  for (const part of query.split('&')) {\n    if (!part) continue;\n    const eqIdx = part.indexOf('=');\n    const rawKey = eqIdx === -1 ? part : part.slice(0, eqIdx);\n    const rawVal = eqIdx === -1 ? '' : part.slice(eqIdx + 1);\n    let key = rawKey;\n    try { key = decodeURIComponent(rawKey.replace(/\\+/g, ' ')); } catch (_) {}\n    if (isTrackingParam(key)) continue;\n    pairs.push([rawKey, rawVal, eqIdx !== -1]);\n  }\n\n  if (pairs.length === 0) return base;\n\n  pairs.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0)));\n  const normQuery = pairs.map(([k, v, hasEq]) => (hasEq ? `${k}=${v}` : k)).join('&');\n  return `${base}?${normQuery}`;\n}\n\nconst seen = new Set(\n  $('Чтение Базы').all()\n    .map(i => normalizeUrl(i.json.url))\n    .filter(Boolean)\n);\n\nconst news = $input.all();\nconst cutoffMs = Date.now() - 24 * 60 * 60 * 1000;\n\nconst freshCandidates = [];\nfor (const n of news) {\n  if (!n.json.url) continue;\n  if (!n.json.title || n.json.title.trim() === '') continue;\n  if (!n.json.date) continue;\n  const ts = new Date(n.json.date).getTime();\n  if (Number.isNaN(ts) || ts <= cutoffMs) continue;\n  freshCandidates.push({ item: n, ts });\n}\nfreshCandidates.sort((a, b) => b.ts - a.ts);\n\nconst bySource = new Map();\nfor (const { item: n, ts } of freshCandidates) {\n  const normUrl = normalizeUrl(n.json.url);\n  if (!normUrl || seen.has(normUrl)) continue;\n  seen.add(normUrl);\n\n  const src = n.json.source || 'News';\n  if (!bySource.has(src)) bySource.set(src, []);\n  bySource.get(src).push({\n    json: {\n      source: src,\n      title: n.json.title,\n      url: n.json.url,\n      normalizedUrl: normUrl,\n      content: n.json.content,\n      date: n.json.date,\n    },\n    _ts: ts,\n  });\n}\n\nconst queues = Array.from(bySource.values());\nqueues.sort((a, b) => b[0]._ts - a[0]._ts);\n\nconst selected = [];\nlet round = 0;\nwhile (selected.length < 10) {\n  let addedInRound = false;\n  for (const q of queues) {\n    if (round < q.length) {\n      selected.push({ json: q[round].json });\n      addedInRound = true;\n      if (selected.length >= 10) break;\n    }\n  }\n  if (!addedInRound) break;\n  round++;\n}\n\nreturn selected;\n"
       },
       "id": "02108391-c595-4d3c-8a30-bf8533baaf67",
       "name": "Фильтр Дубликатов",
@@ -59,7 +59,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Берем полные данные из фильтра, игнорируя обрезанные данные от базы\nconst items = $('Фильтр Дубликатов').all(); \nif (items.length === 0) return [];\n\nconst newsList = items.map((n, i) => ({\n  id: i,\n  title: n.json.title || \"\",\n  text: (n.json.content || \"\").substring(0, 600)\n}));\n\nconst promptText = `You are a professional translator. \nTask: Translate news from English to Russian.\n\nRULES:\n1. Translate \"title\" -> \"ru_title\".\n2. Translate \"text\" -> \"ru_text\".\n3. Summary (1 sentence) -> \"sum\".\n4. Output ONLY a valid JSON array.\n\nINPUT:\n${JSON.stringify(newsList)}`;\n\nreturn [{\n  json: {\n    model: 'gemma-4-e4b',\n    messages: [\n      { role: 'system', content: 'You strictly output JSON arrays and translate everything to Russian.' },\n      { role: 'user', content: promptText }\n    ],\n    temperature: 0.1,\n    max_tokens: 8192\n  }\n}];"
+        "jsCode": "// Берем полные данные из фильтра, игнорируя обрезанные данные от базы\nconst items = $('Фильтр Дубликатов').all();\nif (items.length === 0) return [];\n\nconst newsList = items.map((n, i) => ({\n  id: i,\n  title: n.json.title || '',\n  text: (n.json.content || '').substring(0, 600),\n}));\n\nconst promptText = `You are a professional translator.\nTask: Translate news to Russian.\n\nRULES:\n1. Translate \"title\" -> \"ru_title\".\n2. Translate \"text\" -> \"ru_text\".\n3. If an item is already in Russian, keep it in Russian with light cleanup instead of translating.\n4. Output ONLY a valid JSON array.\n\nINPUT:\n${JSON.stringify(newsList)}`;\n\nreturn [{\n  json: {\n    model: 'gemma-4-e4b',\n    messages: [\n      { role: 'system', content: 'You strictly output JSON arrays and output all news in Russian.' },\n      { role: 'user', content: promptText },\n    ],\n    temperature: 0.1,\n    max_tokens: 8192,\n  },\n}];"
       },
       "id": "b9e54bc1-c52f-466a-93cc-3c47df79dac5",
       "name": "Для ИИ",
@@ -81,14 +81,8 @@
           "timeout": 120000
         },
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.LLM_API_KEY }}"
-            }
-          ]
-        }
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($env.LLM_API_KEY ? { Authorization: 'Bearer ' + $env.LLM_API_KEY } : {}) }}"
       },
       "id": "2d33a2ea-631b-4032-9c76-c5963b58b544",
       "name": "LLM API",
@@ -101,7 +95,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let aiData = [];\ntry {\n  const aiRaw = $input.first().json?.choices?.[0]?.message?.content || '';\n  const jsonMatch = aiRaw.match(/\\[[\\s\\S]*\\]/);\n  if (jsonMatch) aiData = JSON.parse(jsonMatch[0]);\n} catch(e) {\n  console.error('Ошибка парсинга:', e.message);\n}\n\nconst originals = $('Фильтр Дубликатов').all();\n\nreturn originals.map((origItem, i) => {\n  const orig = origItem.json;\n  const ai = aiData.find(item => item.id === i) || {};\n\n  // Берем русский перевод, если он есть и не пустой. Иначе — оригинал.\n  const finalTitle = (ai.ru_title && String(ai.ru_title).trim() !== '') ? ai.ru_title : orig.title;\n  const finalContent = (ai.ru_text && String(ai.ru_text).trim() !== '') ? ai.ru_text : orig.content;\n\n  return {\n    json: {\n      title: finalTitle,\n      summary: ai.sum || '', // Выжимка от ИИ\n      content: (finalContent || '').substring(0, 800),\n      url: orig.url,\n      source: orig.source\n    }\n  };\n});"
+        "jsCode": "function extractArray(parsed) {\n  if (Array.isArray(parsed)) return parsed;\n  if (parsed && typeof parsed === 'object') {\n    for (const key of ['items', 'news', 'data', 'results', 'articles', 'output']) {\n      if (Array.isArray(parsed[key])) return parsed[key];\n    }\n    for (const val of Object.values(parsed)) {\n      if (Array.isArray(val)) return val;\n    }\n  }\n  return null;\n}\n\nlet aiData = [];\nlet llmOk = false;\ntry {\n  const aiRaw = $input.first()?.json?.choices?.[0]?.message?.content;\n  if (typeof aiRaw === 'string' && aiRaw.trim() !== '') {\n    const cleaned = aiRaw\n      .replace(/<think>[\\s\\S]*?<\\/think>/gi, '')\n      .replace(/```(?:json)?\\s*/gi, '')\n      .replace(/```/g, '')\n      .trim();\n\n    let parsed;\n    let hasParsed = false;\n    try {\n      parsed = JSON.parse(cleaned);\n      hasParsed = true;\n    } catch (_) {\n      const firstObj = cleaned.indexOf('{');\n      const firstArr = cleaned.indexOf('[');\n      const candidates = [];\n      if (firstObj !== -1 && (firstArr === -1 || firstObj < firstArr)) {\n        candidates.push(/\\{[\\s\\S]*\\}/, /\\[[\\s\\S]*\\]/);\n      } else {\n        candidates.push(/\\[[\\s\\S]*\\]/, /\\{[\\s\\S]*\\}/);\n      }\n      for (const re of candidates) {\n        const m = cleaned.match(re);\n        if (!m) continue;\n        try {\n          parsed = JSON.parse(m[0]);\n          hasParsed = true;\n          break;\n        } catch (__) {}\n      }\n    }\n\n    if (hasParsed) {\n      const extracted = extractArray(parsed);\n      if (Array.isArray(extracted)) {\n        const validObjects = extracted.filter(item => item && typeof item === 'object' && !Array.isArray(item));\n        if (extracted.length === 0 || validObjects.length > 0) {\n          aiData = validObjects;\n          llmOk = true;\n        }\n      }\n    }\n  }\n} catch (e) {\n  console.error('Ошибка парсинга:', e.message);\n}\n\nif (!llmOk) {\n  return [];\n}\n\nconst originals = $('Фильтр Дубликатов').all();\n\nreturn originals.map((origItem, i) => {\n  const orig = origItem.json;\n  const ai = aiData.find(item =>\n    item.id !== undefined\n    && item.id !== null\n    && String(item.id).trim() !== ''\n    && Number(item.id) === i\n  );\n\n  const selected = Boolean(ai);\n  const finalTitle = (ai && ai.ru_title && String(ai.ru_title).trim() !== '') ? ai.ru_title : orig.title;\n  const finalContent = (ai && ai.ru_text && String(ai.ru_text).trim() !== '') ? ai.ru_text : orig.content;\n\n  return {\n    json: {\n      selected,\n      title: finalTitle,\n      content: (finalContent || '').substring(0, 800),\n      url: orig.url,\n      normalizedUrl: orig.normalizedUrl || orig.url,\n      source: orig.source,\n    },\n  };\n});"
       },
       "id": "340d5bb5-f10e-4158-a1b5-27105b12c78b",
       "name": "Парсинг ответа ИИ",
@@ -110,6 +104,38 @@
       "position": [
         5536,
         928
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.selected ? 'true' : 'false' }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c7d8e9f0-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+      "name": "Отобрано ИИ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5744,
+        840
       ]
     },
     {
@@ -128,8 +154,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        5984,
-        928
+        6176,
+        840
       ],
       "onError": "continueErrorOutput"
     },
@@ -255,8 +281,8 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        5712,
-        928
+        5952,
+        840
       ]
     },
     {
@@ -269,7 +295,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "url": "={{ $json.url }}"
+            "url": "={{ $json.normalizedUrl || $json.url }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -294,8 +320,8 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        5984,
-        1100
+        5744,
+        1088
       ]
     }
   ],
@@ -360,6 +386,22 @@
       "main": [
         [
           {
+            "node": "Отобрано ИИ?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Записать URL в дедуп",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отобрано ИИ?": {
+      "main": [
+        [
+          {
             "node": "Сохранить в Queue (pending)",
             "type": "main",
             "index": 0
@@ -396,11 +438,6 @@
             "node": "Telegram (группа с кнопками)",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Записать URL в дедуп",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -423,9 +460,7 @@
     "binaryMode": "separate"
   },
   "versionId": "a8584359-b17d-44bb-8b60-1673c0446937",
-  "meta": {
-    "instanceId": "b60510a1c42de69393184a32dd9357985273cd9ad91d3b831d2d1f02c35e373b"
-  },
+  "meta": {},
   "id": "JQWPBC2gXvYrgvIW",
   "tags": []
 }

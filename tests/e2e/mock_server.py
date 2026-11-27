@@ -7,19 +7,33 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOG = sys.argv[2]
 lock = threading.Lock()
-state = {"updates": [], "msg_id": 100}
+state = {"updates": [], "msg_id": 100, "llm_mode": "normal"}
 
 
 def rss():
     now = datetime.now(timezone.utc)
     items = ""
-    for i, (t, d) in enumerate([("Test story one", "First body & <b>tags</b>"), ("Second \"quoted\" story", "Second body"), ("Third story", "Third body")]):
-        link = f"https://example.com/s{i}?param=1&amp;ref=news" if i == 0 else f"https://example.com/s{i}"
+    stories = [
+        ("Test story one", "First body & <b>tags</b>", "https://example.com/s0?param=1&amp;ref=news", 5),
+        ("Second \"quoted\" story", "Second body", "https://example.com/s1", 6),
+        ("Third story", "Third body", "https://example.com/s2", 7),
+        ("Rejected story", "Rejected body", "https://example.com/s3?utm_medium=feed#top", 8),
+    ]
+    for t, d, link, mins in stories:
         items += (f"<item><title><![CDATA[{t}]]></title><link>{link}</link>"
-                  f"<description><![CDATA[{d}]]></description><pubDate>{format_datetime(now - timedelta(minutes=5 + i))}</pubDate></item>")
+                  f"<description><![CDATA[{d}]]></description><pubDate>{format_datetime(now - timedelta(minutes=mins))}</pubDate></item>")
     old = format_datetime(now - timedelta(days=3))
     items += f"<item><title>Old story</title><link>https://example.com/old</link><description>x</description><pubDate>{old}</pubDate></item>"
     return f'<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>{items}</channel></rss>'
+
+
+def rss_dup():
+    now = datetime.now(timezone.utc)
+    link = "https://example.com/s0/?utm_source=rss&amp;fbclid=123&amp;param=1#frag"
+    pub = format_datetime(now - timedelta(minutes=5, seconds=10))
+    item = (f"<item><title><![CDATA[Test story one (dup)]]></title><link>{link}</link>"
+            f"<description><![CDATA[Dup body]]></description><pubDate>{pub}</pubDate></item>")
+    return f'<?xml version="1.0"?><rss version="2.0"><channel><title>t2</title>{item}</channel></rss>'
 
 
 class H(BaseHTTPRequestHandler):
@@ -36,6 +50,8 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self._log(None)
+        if self.path.startswith("/rss2"):
+            return self._send(200, rss_dup(), "application/rss+xml")
         if self.path.startswith("/rss"):
             return self._send(200, rss(), "application/rss+xml")
         if "/getUpdates" in self.path:
@@ -52,13 +68,26 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/_control/updates":
             with lock: state["updates"] = body
             return self._send(200, {"ok": True})
+        if self.path == "/_control/llm":
+            with lock: state["llm_mode"] = body.get("mode", "normal") if isinstance(body, dict) else "normal"
+            return self._send(200, {"ok": True})
         if self.path.endswith("/v1/chat/completions"):
+            with lock: llm_mode = state["llm_mode"]
+            if llm_mode == "error":
+                return self._send(500, {"error": "mock llm failure"})
+            if llm_mode == "garbage":
+                return self._send(200, {"choices": [{"message": {"role": "assistant", "content": "<think>checking [0, 1]</think>Sorry, I cannot process JSON right now."}}]})
             msgs = body.get("messages", []) if isinstance(body, dict) else []
             text = " ".join(m.get("content", "") for m in msgs)
             if "translator" in text:
                 n = json.loads(text[text.index("INPUT:") + 6:].strip())
-                out = json.dumps([{"id": x["id"], "ru_title": "RU " + x["title"], "ru_text": "RU " + x["text"], "sum": "s"} for x in n])
-                content = "Here you go:\n" + out
+                selected = [
+                    {"id": str(x["id"]), "ru_title": "RU " + x["title"], "ru_text": "RU " + x["text"]}
+                    for x in n
+                    if x.get("title") != "Rejected story"
+                ]
+                out = json.dumps({"items": selected}, ensure_ascii=False)
+                content = "<think>internal [99] thoughts</think>\n```json\n" + out + "\n```"
             else:
                 content = "Короткий комментарий <без> разметки."
             return self._send(200, {"choices": [{"message": {"role": "assistant", "content": content}}]})
