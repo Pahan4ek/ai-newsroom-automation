@@ -82,7 +82,7 @@
         },
         "sendHeaders": true,
         "specifyHeaders": "json",
-        "jsonHeaders": "={{ $env.LLM_API_KEY ? { Authorization: 'Bearer ' + $env.LLM_API_KEY } : {} }}"
+        "jsonHeaders": "={{ JSON.stringify($env.LLM_API_KEY ? { Authorization: 'Bearer ' + $env.LLM_API_KEY } : {}) }}"
       },
       "id": "2d33a2ea-631b-4032-9c76-c5963b58b544",
       "name": "LLM API",
